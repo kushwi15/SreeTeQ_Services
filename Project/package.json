@@ -14,7 +14,7 @@
     "install": "^0.13.0",
     "jwt-decode": "^4.0.0",
     "moment": "2.29.4",
-    "node": "^22.8.0",
+    "node": "^22.9.0",
     "nouislider": "15.4.0",
     "react": ">=16.8.0",
     "react-bootstrap": "^2.10.4",
