@@ -18,7 +18,21 @@ import {Chart as ChartJS,ArcElement,Tooltip,Legend,} from 'chart.js';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import { useNavigate } from 'react-router-dom';
 import {jwtDecode} from 'jwt-decode';
-import { min } from 'moment';
+// import { min } from 'moment';
+
+// -----location
+// import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+// import { faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons';
+
+// Set default marker icon
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
+
 
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -46,47 +60,77 @@ const UserDashboard = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   // ... other code
+   
+    // States for location
+    const [position, setPosition] = useState([0, 0]); // Default map position
+    const [pinnedPosition, setPinnedPosition] = useState(null); // Pinned location on the map
+    const [coordinatesInput, setCoordinatesInput] = useState(''); // Coordinates input box value
+    const [addressInput, setAddressInput] = useState(''); // Address input box value
   
+    // Get current location function
+    const getCurrentLocation = () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            setPosition([latitude, longitude]);
+            setPinnedPosition([latitude, longitude]); // Set initial pinned position
+            setCoordinatesInput(`${latitude}, ${longitude}`); // Display coordinates in the input box
+            await getAddressFromCoordinates(latitude, longitude);
+          },
+          (err) => {
+            alert('Unable to retrieve your location.');
+          }
+        );
+      } else {
+        alert('Geolocation is not supported by this browser.');
+      }
+    };
   
+    // Get address from coordinates
+    const getAddressFromCoordinates = async (lat, lon) => {
+      try {
+        const response = await axios.get(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
+        );
+        setAddress(response.data.display_name || 'Address not found');
+        setAddressInput(response.data.display_name || 'Address not found'); // Display address in the input box
+      } catch (err) {
+        alert('Failed to fetch address from coordinates.');
+      }
+    };
   
-  // const [isVisible, setIsVisible] = useState(true);
-  // const [isModalOpen, setIsModalOpen] = useState(false);
-  // const [selectedQuestion, setSelectedQuestion] = useState('');
-  // const [answer, setAnswer] = useState('');
-  // const [isOpen, setIsOpen] = useState(false);
-
-  // Define the phone number and construct the WhatsApp link
-  const phoneNumber = '9494412464';
-  const whatsappLink = `https://wa.me/${phoneNumber}?text=Hello!`;
-  const phoneLink = `tel:${phoneNumber}`;
-  // const toggleVisibility = () => {
-  //   setIsVisible(!isVisible);
-  // };
+    // Confirm location
+    // const confirmLocation = () => {
+    //   if (pinnedPosition) {
+    //     alert('Location confirmed!');
+    //   }
+    // };
   
-// const ChatBot = () => {
+    // Handle coordinates input change
+    const handleCoordinatesChange = (e) => {
+      setCoordinatesInput(e.target.value);
+      const coords = e.target.value.split(',').map(Number);
+      if (coords.length === 2) {
+        setPosition(coords);
+        setPinnedPosition(coords); // Pin location on coordinates input
+        getAddressFromCoordinates(coords[0], coords[1]); // Fetch address from coordinates input
+      }
+    };
+  
+    // Handle address input change
+    const handleAddressChange = (e) => {
+      setAddressInput(e.target.value);
+    };
+  
+    // Handle map click to pin location
+    // const handleMapClick = (e) => {
+    //   setPinnedPosition(e.latlng); // Set pinned position on map click
+    //   setPosition([e.latlng.lat, e.latlng.lng]); // Update the position state
+    //   setCoordinatesInput(`${e.latlng.lat}, ${e.latlng.lng}`); // Update coordinates input
+    //   getAddressFromCoordinates(e.latlng.lat, e.latlng.lng); // Get address from new position
+    // };
 
-//  // Function to toggle the modal visibility
-//   const toggleModal = () => {
-//     setIsModalOpen(!isModalOpen);
-//     setSelectedQuestion('');
-//     setAnswer('');
-//   };
-
-//   // List of questions and answers
-//   const questions = [
-//     { question: 'What services do you offer?', answer: 'We offer AC installation, repair, maintenance, and more.' },
-//     { question: 'How do I book a service appointment?', answer: 'You can call us at [Your Phone Number] or visit our website to book an appointment.' },
-//     { question: 'What are your service hours?', answer: 'Our service hours are Monday to Friday, 8:00 AM - 6:00 PM.' },
-//     { question: 'How much do your services cost?', answer: 'Service costs vary based on the service type. Contact us for a detailed quote.' },
-//     { question: 'Do you offer any guarantees?', answer: 'Yes, we offer a satisfaction guarantee on all our services.' },
-//   ];
-
-//   // Function to handle when a question is clicked
-//   const handleQuestionClick = (question) => {
-//     setSelectedQuestion(question.question);
-//     setAnswer(question.answer);
-//   };;
-// }; 
 
 const [personalDetails, setPersonalDetails] = useState({
   userid: '',
@@ -114,7 +158,7 @@ useEffect(() => {
       console.log('Decoded Token:', decodedToken);
 
       // Ensure the token structure matches your backend's expectations
-      if (!decodedToken.id) {
+      if (!decodedToken.userid) {
         throw new Error('Invalid token structure.');
       }
 
@@ -135,7 +179,6 @@ useEffect(() => {
 
         console.log('User Details:', userDetails);
 
-
         setPersonalDetails({
           userid: userDetails.userid || '',
           Name: userDetails.Name || '',
@@ -148,12 +191,11 @@ useEffect(() => {
       }
     } catch (error) {
       console.error('Failed to load user data:', error);
-      setError('Failed to load user data.');
       if (error.response && error.response.status === 401) {
         navigate('/login');
       }
     } finally {
-      setLoading(false);
+      setLoading(false); // Ensure loading state is reset
     }
   };
 
@@ -217,71 +259,99 @@ const handleLogout = () => {
     fetchData();
   }, []);
 
- 
   const handleProceedToPay = async () => {
     try {
-      const userid = localStorage.getItem('user_id');  // Retrieve user_id from localStorage
-      // console.log('Retrieved userid:', userid);
-
+      const userid = localStorage.getItem('user_id'); // Retrieve user_id from localStorage
+  
       if (!userid) {
         throw new Error('Userid is required for payment processing');
       }
-
+  
       if (!cart || cart.length === 0) {
         throw new Error('Cart is empty');
       }
-
+  
       // Calculate total amount from cart
       const amount = cart.reduce((total, item) => {
-        const itemPrice = typeof item.price === 'number' 
-          ? item.price 
-          : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0;
-
+        // Ensure price and discount exist and are strings or numbers
+        const itemPrice = typeof item.price === 'number'
+          ? item.price
+          : item.price && typeof item.price === 'string'
+          ? parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0
+          : 0;
+  
         const discountAmount = typeof item.discount === 'number'
           ? item.discount
-          : parseFloat(item.discount.replace(/[^0-9.-]+/g, '')) || 0;
-
+          : item.discount && typeof item.discount === 'string'
+          ? parseFloat(item.discount.replace(/[^0-9.-]+/g, '')) || 0
+          : 0;
+  
         const totalPrice = itemPrice - discountAmount;
         item.totalPrice = totalPrice > 0 ? totalPrice : itemPrice;
         return total + item.totalPrice;
       }, 0);
-
+  
       console.log('Total Amount Calculated:', amount);
-
+  
       if (amount <= 0) {
         throw new Error('Total amount must be greater than zero');
       }
-
+  
       if (!address) {
         throw new Error('Address is required for payment processing');
       }
-
+  
       // Make payment request to the backend
       const response = await axios.post('http://localhost:5000/api/payment', {
         userid,
         amount,
-        address,  // Use the address from modal
+        address,
         cart,
       });
-
-      console.log('Payment response:', response.data);
-      alert('Payment successful!');
-
-      setNotifications(prevNotifications => [
-        ...prevNotifications,
-        {
-          id: new Date().getTime(),
-          message: 'Thank you for choosing our services. Payment was successful.',
+  
+      console.log('Backend Payment response:', response.data);
+  
+      // Razorpay Integration
+      var options = {
+        key: "rzp_test_d4pLXa7gyQuEX9", // Your Razorpay Key
+        key_secret: "qjlkJruOyIz689EqqqMK2pNn", // Razorpay Secret
+        amount: amount * 100, // Razorpay accepts amount in paise
+        currency: "INR",
+        name: "NR Agencies", // Your company/service name
+        description: "Payment for AC Repair Services",
+        handler: function (response) {
+          alert(`Payment Successful! Payment ID: ${response.razorpay_payment_id}`);
+          setNotifications(prevNotifications => [
+            ...prevNotifications,
+            {
+              id: new Date().getTime(),
+              message: 'Thank you for choosing our services. Payment was successful.',
+            },
+          ]);
+          setCart([]);  // Clear cart after successful payment
         },
-      ]);
-
-      setCart([]);  // Clear cart after payment
-
+        prefill: {
+          name: "Kushwinth", // Prefill customer details (can be dynamic)
+          email: "testmail@gmail.com",
+          contact: "9876543210"
+        },
+        notes: {
+          address: "Razorpay Corporate Office"
+        },
+        theme: {
+          color: "#3399cc"
+        }
+      };
+  
+      var pay = new window.Razorpay(options);
+      pay.open();
+  
     } catch (error) {
       console.error('Error during payment process:', error.response ? error.response.data : error.message);
       setError('An error occurred during the payment process.');
     }
   };
+
 
   const handleConfirmBooking = async () => {
     try {
@@ -330,11 +400,12 @@ const handleLogout = () => {
       // Ensure itemTotalPrice is non-negative and properly calculated
       itemTotalPrice = itemTotalPrice > 0 ? itemTotalPrice : currentItem.price || 0;
   
-      // Create the cart item object
+      // Create the cart item object, including name and mobile number
       const cartItem = {
         ...currentItem,
         userid: personalDetails.userid, // Use userid from personalDetails
-        Number: personalDetails.mobileNumber, // Ensure mobile number is pulled correctly
+        username: personalDetails.Name, // Include full name
+        mobileNumber: personalDetails.mobileNumber, // Ensure mobile number is pulled correctly
         slotBookedTime: slotBookedTime.toISOString(),
         slotBookedDate: selectedDate,
         estimatedTime: currentItem.estimatedTime || 'N/A',
@@ -367,8 +438,8 @@ const handleLogout = () => {
       setError('An error occurred while booking the slot. Please try again.');
     }
   };
-    
   
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -383,7 +454,8 @@ const handleLogout = () => {
     } else {
       setLocation('Geolocation not supported');
     }
-  }, []);
+  },
+    []);
 
   const toggleMenu = () => setMenuOpen(!menuOpen);
 
@@ -870,6 +942,16 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
           />
         </div>
         <div className="mb-3">
+          <label htmlFor="username" className="form-label">User Name</label>
+          <input 
+            type="text" 
+            className="form-control" 
+            id="username" 
+            value={personalDetails.Name} // Set user ID from userDetails
+            readOnly // Make it read-only
+          />
+        </div>
+        <div className="mb-3">
           <label htmlFor="mobileNumber" className="form-label">Mobile Number</label>
           <input 
             type="text" 
@@ -904,6 +986,17 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
           </select>
         </div>
         <div className="mb-3">
+          <label htmlFor="coordinates" className="form-label">Enter Coordinates (Lat, Lon)</label>
+          <input 
+            type="text" 
+            className="form-control" 
+            id="coordinates" 
+            value={coordinatesInput} 
+            onChange={handleCoordinatesChange} 
+            placeholder="Coordinates (lat, lon)"
+          />
+        </div>
+        <div className="mb-3">
           <label htmlFor="address" className="form-label">Enter Address</label>
           <input 
             type="text" 
@@ -913,6 +1006,21 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
             onChange={(e) => setAddress(e.target.value)} 
             placeholder="Enter your address"
           />
+        </div>
+        {/* Location section */}
+        <div className="mb-3">
+          <button onClick={getCurrentLocation} className="btn btn-primary">Get Location</button>
+          {/* <button onClick={confirmLocation} className="btn btn-success" style={{ marginLeft: '10px' }}>Confirm Location</button> */}
+          {pinnedPosition && (
+            <a
+              href={`https://www.google.com/maps?q=${pinnedPosition[0]},${pinnedPosition[1]}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ marginLeft: '10px' }}
+            >
+              <FontAwesomeIcon icon={faMapMarkerAlt} size="2x" style={{ color: 'red' }} />
+            </a>
+          )}
         </div>
         {error && <div className="alert alert-danger" role="alert">{error}</div>}
       </Modal.Body>
@@ -1565,34 +1673,6 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
         ))}
       </div>
     
-    </div>
-
-    {/* WhatsApp */}
-
-    <div>
-      {/* {isVisible && ( */}
-        <a
-          href={whatsappLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="whatsapp-icon btn btn-success rounded-circle">
-          <i className="fab fa-whatsapp fa-4x"></i>
-        </a>
-      {/* )} */}
-    </div>
-
-
-    {/* Phone */}
-    <div>
-      {/* {isVisible && ( */}
-        <a
-          href={phoneLink}
-          target="_blank"
-          className="phone-icon btn btn-success rounded-circle"
-        >
-          <i className="fas fa-phone fa-4x"></i>
-        </a>
-      {/* )} */}
     </div>
 
     {/* chat Bot*/}
