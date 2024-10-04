@@ -50,6 +50,8 @@ const UserDashboard = () => {
   const [selectedTime, setSelectedTime] = useState('');
   const [showCartModal, setShowCartModal] = useState(false);
   const [showSlotModal, setShowSlotModal] = useState(false);
+  const [showCartedModal, setShowCartedModal] = useState(false);
+  const [showSlotedModal, setShowSlotedModal] = useState(false);
   const [cart, setCart] = useState([]);
   const [location, setLocation] = useState('Fetching location...');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -271,29 +273,23 @@ const handleLogout = () => {
         throw new Error('Cart is empty');
       }
   
-      // Calculate total amount from cart
-      const amount = cart.reduce((total, item) => {
-        // Ensure price and discount exist and are strings or numbers
-        const itemPrice = typeof item.price === 'number'
-          ? item.price
-          : item.price && typeof item.price === 'string'
-          ? parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0
-          : 0;
-  
-        const discountAmount = typeof item.discount === 'number'
-          ? item.discount
-          : item.discount && typeof item.discount === 'string'
-          ? parseFloat(item.discount.replace(/[^0-9.-]+/g, '')) || 0
-          : 0;
-  
-        const totalPrice = itemPrice - discountAmount;
-        item.totalPrice = totalPrice > 0 ? totalPrice : itemPrice;
-        return total + item.totalPrice;
+      // Calculate subtotal amount from cart (before any discount)
+      const subtotal = cart.reduce((total, item) => {
+        const itemPrice = parseFloat(item.price) || 0;
+        return total + itemPrice;
       }, 0);
   
-      console.log('Total Amount Calculated:', amount);
+      console.log('Subtotal Calculated:', subtotal);
   
-      if (amount <= 0) {
+      // Apply the discount of ₹100 for second item onwards
+      const discount = cart.length > 1 ? 100 : 0;
+  
+      // Calculate the final total amount after discount
+      const totalAmount = subtotal - discount;
+  
+      console.log('Total Amount Calculated (after discount):', totalAmount);
+  
+      if (totalAmount <= 0) {
         throw new Error('Total amount must be greater than zero');
       }
   
@@ -301,26 +297,30 @@ const handleLogout = () => {
         throw new Error('Address is required for payment processing');
       }
   
-      // Make payment request to the backend
-      const response = await axios.post('http://localhost:5000/api/payment', {
-        userid,
-        amount,
-        address,
-        cart,
-      });
-  
-      console.log('Backend Payment response:', response.data);
-  
       // Razorpay Integration
       var options = {
         key: "rzp_test_d4pLXa7gyQuEX9", // Your Razorpay Key
         key_secret: "qjlkJruOyIz689EqqqMK2pNn", // Razorpay Secret
-        amount: amount * 100, // Razorpay accepts amount in paise
+        amount: totalAmount * 100, // Razorpay accepts amount in paise
         currency: "INR",
         name: "NR Agencies", // Your company/service name
         description: "Payment for AC Repair Services",
-        handler: function (response) {
-          alert(`Payment Successful! Payment ID: ${response.razorpay_payment_id}`);
+        handler: async function (response) {
+          const razorpayPaymentId = response.razorpay_payment_id;
+  
+          alert(`Payment Successful! Payment ID: ${razorpayPaymentId}`);
+  
+          // Send the transactionId (razorpayPaymentId) to the backend
+          const paymentResponse = await axios.post('http://localhost:5000/api/payment', {
+            userid,
+            amount: totalAmount,
+            address,
+            cart,
+            transactionId: razorpayPaymentId,  // Pass Razorpay payment ID to backend
+          });
+  
+          console.log('Backend Payment response:', paymentResponse.data);
+  
           setNotifications(prevNotifications => [
             ...prevNotifications,
             {
@@ -328,6 +328,7 @@ const handleLogout = () => {
               message: 'Thank you for choosing our services. Payment was successful.',
             },
           ]);
+  
           setCart([]);  // Clear cart after successful payment
         },
         prefill: {
@@ -351,94 +352,73 @@ const handleLogout = () => {
       setError('An error occurred during the payment process.');
     }
   };
-
-
+  
   const handleConfirmBooking = async () => {
     try {
-      // Retrieve the userid from localStorage
-      const userid = localStorage.getItem('user_id');
-    
-      // Check if userid is retrieved successfully
-      if (!userid) {
-        setError('User ID not found. Please log in again.');
-        return;
-      }
-  
-      // Ensure required fields are present
-      if (!selectedDate || !selectedTime || !address) {
-        setError('All fields are required.');
-        return;
-      }
-  
-      // Parse the selected date and time
-      const [day, month, year] = selectedDate.split('-').map(Number);
-      let [time, modifier] = selectedTime.split(' ');
-      let [hour, minute] = time.split(':').map(Number);
-  
-      // Adjust time based on AM/PM modifier
-      if (modifier === 'PM' && hour < 12) {
-        hour += 12;
-      } else if (modifier === 'AM' && hour === 12) {
-        hour = 0;
-      }
-  
-      const slotBookedTime = new Date(year, month - 1, day, hour, minute);
-      if (isNaN(slotBookedTime.getTime())) {
-        setError('Invalid date or time. Please try again.');
-        return;
-      }
-  
-      // Safely handle price and discount parsing
-      const discountAmount = typeof currentItem.discount === 'number'
-        ? currentItem.discount
-        : parseFloat(currentItem?.discount?.replace(/[^0-9.-]+/g, '')) || 0;
-  
-      let itemTotalPrice = typeof currentItem.price === 'number'
-        ? currentItem.price - discountAmount
-        : parseFloat(currentItem?.price?.replace(/[^0-9.-]+/g, '')) - discountAmount;
-  
-      // Ensure itemTotalPrice is non-negative and properly calculated
-      itemTotalPrice = itemTotalPrice > 0 ? itemTotalPrice : currentItem.price || 0;
-  
-      // Create the cart item object, including name and mobile number
-      const cartItem = {
-        ...currentItem,
-        userid: personalDetails.userid, // Use userid from personalDetails
-        username: personalDetails.Name, // Include full name
-        mobileNumber: personalDetails.mobileNumber, // Ensure mobile number is pulled correctly
-        slotBookedTime: slotBookedTime.toISOString(),
-        slotBookedDate: selectedDate,
-        estimatedTime: currentItem.estimatedTime || 'N/A',
-        totalPrice: itemTotalPrice,
-        address // Include the address
-      };
-  
-      // Add the item to the cart
-      const updatedCart = [...cart, cartItem];
-  
-      // Apply discounts if applicable
-      const discountForMultipleItems = updatedCart.length >= 2 ? 100 : 0;
-      const totalAmount = updatedCart.reduce((total, item) => total + item.totalPrice, 0);
-      const discountedTotalAmount = totalAmount - (discountForMultipleItems / updatedCart.length);
-  
-      // Log the total amount for confirmation
-      console.log(`Total Amount: ₹${discountedTotalAmount.toFixed(2)}`);
-  
-      // Update the cart state and clear form fields
-      setCart(updatedCart);
-      setSelectedDate('');
-      setSelectedTime('');
-      setShowSlotModal(false);
-      setShowCartModal(true);
-  
-      // Send the booking details to the backend
-      await axios.post('http://localhost:5000/api/carts', cartItem);
+        const userid = localStorage.getItem('user_id');
+        if (!userid) {
+            setError('User ID not found. Please log in again.');
+            return;
+        }
+
+        if (!selectedDate || !selectedTime || !address || !coordinatesInput) {
+            setError('All fields are required.');
+            return;
+        }
+
+        const [day, month, year] = selectedDate.split('-').map(Number);
+        let [time, modifier] = selectedTime.split(' ');
+        let [hour, minute] = time.split(':').map(Number);
+
+        if (modifier === 'PM' && hour < 12) {
+            hour += 12;
+        } else if (modifier === 'AM' && hour === 12) {
+            hour = 0;
+        }
+
+        const slotBookedTime = new Date(year, month - 1, day, hour, minute);
+        if (isNaN(slotBookedTime.getTime())) {
+            setError('Invalid date or time. Please try again.');
+            return;
+        }
+
+        const itemPrice = typeof currentItem.price === 'number'
+            ? currentItem.price
+            : parseFloat(currentItem?.price?.replace(/[^0-9.-]+/g, '')) || 0;
+
+        const itemTotalPrice = itemPrice;
+
+        const coordinates = coordinatesInput.split(',').map(Number); // Extracting lat, lon
+        if (coordinates.length !== 2 || isNaN(coordinates[0]) || isNaN(coordinates[1])) {
+            setError('Invalid coordinates. Please enter valid latitude and longitude.');
+            return;
+        }
+
+        const cartItem = {
+            ...currentItem,
+            userid: personalDetails.userid,
+            username: personalDetails.Name,
+            mobileNumber: personalDetails.mobileNumber,
+            slotBookedTime: slotBookedTime.toISOString(),
+            slotBookedDate: selectedDate,
+            estimatedTime: currentItem.estimatedTime || 'N/A',
+            totalPrice: itemTotalPrice,
+            address,
+            coordinates: { lat: coordinates[0], lon: coordinates[1] }
+        };
+
+        const updatedCart = [...cart, cartItem];
+        setCart(updatedCart);
+        setSelectedDate('');
+        setSelectedTime('');
+        setShowSlotModal(false);
+        setShowCartModal(true);
+
+        await axios.post('http://localhost:5000/api/carts', cartItem);
     } catch (error) {
-      console.error('Error during booking process:', error);
-      setError('An error occurred while booking the slot. Please try again.');
+        console.error('Error during booking process:', error);
     }
   };
-  
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -613,99 +593,53 @@ const handleLogout = () => {
   ];
 
 
-  const [wrepairs, setWrepairs] = useState([]); 
-  const [winstallations, setWinstallations] = useState([]);
-  const [wuninstallations, setWuninstallations] = useState([]);
-  const [selectedRepairIssues, setSelectedRepairIssues] = useState({});
-  const repairPricePerIssue = 160;
+const [wrepairs, setWrepairs] = useState([]); 
+const [winstallations, setWinstallations] = useState([]);
+const [wuninstallations, setWuninstallations] = useState([]);
 
-  useEffect(() => {
-    const fetchWashRepairs = async () => {
-      try {
-        const response = await axios.get('http://localhost:5000/api/wrepairs');
-        setWrepairs(response.data); // Set the repair services from the backend
-      } catch (error) {
-        console.error('Error fetching repairs:', error);
-      }
-    };
-
-    const fetchWashInstallations = async () => {
-      try {
-        const response = await axios.get('http://localhost:5000/api/winstallations');
-        setWinstallations(response.data); // Set the installation services from the backend
-      } catch (error) {
-        console.error('Error fetching installations:', error);
-      }
-    };
-
-    const fetchWashUninstallations = async () => {
-      try {
-        const response = await axios.get('http://localhost:5000/api/wuninstallations');
-        setWuninstallations(response.data); // Set the uninstallation services from the backend
-      } catch (error) {
-        console.error('Error fetching uninstallations:', error);
-      }
-    };
-
-    // Call all fetch functions
-    fetchWashRepairs();
-    fetchWashInstallations();
-    fetchWashUninstallations();
-  }, []);
-
-  // const handleRepairCheckboxChange = (repairId, issue) => {
-  //   setSelectedRepairIssues((prevSelected) => {
-  //     const issues = prevSelected[repairId] || [];
-  //     if (issues.includes(issue)) {
-  //       return {
-  //         ...prevSelected,
-  //         [repairId]: issues.filter((i) => i !== issue),
-  //       };
-  //     } else {
-  //       return {
-  //         ...prevSelected,
-  //         [repairId]: [...issues, issue],
-  //       };
-  //     }
-  //   });
-  // };
-
-  // const calculateRepairTotalPrice = (repairId) => {
-  //   const issues = selectedRepairIssues[repairId] || [];
-  //   return issues.length * repairPricePerIssue;
-  // };
-
-  const handleRepairCheckboxChange = (repairId, issue) => {
-    setSelectedRepairIssues((prevSelected) => {
-      const currentIssuesForRepair = prevSelected[repairId] || [];
-      
-      if (currentIssuesForRepair.includes(issue)) {
-        return {
-          ...prevSelected,
-          [repairId]: currentIssuesForRepair.filter((i) => i !== issue), // Remove issue
-        };
-      } else {
-        return {
-          ...prevSelected,
-          [repairId]: [...currentIssuesForRepair, issue], // Add issue
-        };
-      }
-    });
-  };
-  
-  // Function to calculate the total price based on selected issues for a specific repairId
-  const calculateRepairTotalPrice = (repairId) => {
-    const selectedIssues = selectedRepairIssues[repairId] || [];
-    if (selectedIssues.length === 0) {
-      return 0; // If no issues are selected, return 0
+useEffect(() => {
+  const fetchWashRepairs = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/wrepairs');
+      setWrepairs(response.data); // Set the repair services from the backend
+    } catch (error) {
+      console.error('Error fetching repairs:', error);
     }
-    
-    const totalIssuePrice = selectedIssues.length * repairPricePerIssue;
-    return totalIssuePrice;
   };
 
-  
-  
+  const fetchWashInstallations = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/winstallations');
+      setWinstallations(response.data); // Set the installation services from the backend
+    } catch (error) {
+      console.error('Error fetching installations:', error);
+    }
+  };
+
+  const fetchWashUninstallations = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/wuninstallations');
+      setWuninstallations(response.data); // Set the uninstallation services from the backend
+    } catch (error) {
+      console.error('Error fetching uninstallations:', error);
+    }
+  };
+
+  // Call all fetch functions
+  fetchWashRepairs();
+  fetchWashInstallations();
+  fetchWashUninstallations();
+}, []);
+
+const handleWashingMachineBooking = async (selectedService) => {
+  setCurrentItem(selectedService); // Set the current item
+  setShowSlotedModal(true); // Show the slot booking modal
+};
+
+const handleRemoveservicefromCart = (selectedServiceId) => {
+  setCart((prevCart) => prevCart.filter((selectedService) => selectedService._id !== selectedServiceId));
+};
+
 
 const fridgePricePerIssue = 99;
 
@@ -838,6 +772,8 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
   return issues.length * fridgePricePerIssue;
 };
 
+
+
   
 
   return (
@@ -885,150 +821,195 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
       
             {/* Cart Modal */}
       <Modal show={showCartModal} onHide={() => setShowCartModal(false)}>
-      <Modal.Header closeButton>
-        <Modal.Title>Cart</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        <ul className="list-group">
-          {cart.map((item) => (
-            <li className="list-group-item d-flex justify-content-between align-items-center" key={item._id}>
-              <div>
-                <strong>Type:</strong> {item.type}<br />
-                <strong>Price:</strong> ₹{item.price}<br />
-                <strong>Discount:</strong> ₹{item.discount}<br />
-                <strong>Estimated Time:</strong> {item.estimatedTime}<br />
-                <strong>Slot Booked Time:</strong> {item.slotBookedTime ? new Date(item.slotBookedTime).toLocaleString() : 'N/A'}<br />
-                <strong>Slot Booked Date:</strong> {item.slotBookedDate ? new Date(item.slotBookedDate).toLocaleDateString() : 'N/A'}<br />
-                <strong>Total Price:</strong> ₹{item.totalPrice}<br />
-              </div>
-              <Button variant="danger" onClick={() => handleRemoveFromCart(item._id)}>Remove</Button>
-            </li>
-          ))}
-        </ul>
-        <hr />
-        <div className="d-flex justify-content-between">
-          <strong>Subtotal:</strong>
-          <span>₹{cart.reduce((total, item) => total + item.totalPrice, 0).toFixed(2)}</span>
-        </div>
-        <div className="d-flex justify-content-between">
-          <strong>Discount Applied:</strong>
-          <span>₹{cart.length >= 2 ? 100 : 0}</span>
-        </div>
-        <div className="d-flex justify-content-between">
-          <strong>Total Amount:</strong>
-          <span>₹{(cart.reduce((total, item) => total + item.totalPrice, 0) - (cart.length >= 2 ? 100 : 0)).toFixed(2)}</span>
-        </div>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onClick={() => setShowCartModal(false)}>Close</Button>
-        <Button variant="primary" onClick={handleProceedToPay}>Proceed to Pay</Button>
-      </Modal.Footer>
+        <Modal.Header closeButton>
+          <Modal.Title>Cart</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <ul className="list-group">
+            {cart.map((item, index) => (
+              <li className="list-group-item d-flex justify-content-between align-items-center" key={item._id}>
+                <div>
+                  <strong>Type:</strong> {item.type}<br />
+                  <strong>Price:</strong> ₹{item.price}<br />
+                  <strong>Discount:</strong> ₹100 off 2nd item onwards<br />
+                  <strong>Estimated Time:</strong> {item.time || 'N/A'}<br />
+                  <strong>Slot Booked Time:</strong> {item.slotBookedTime ? new Date(item.slotBookedTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}<br />
+                  <strong>Slot Booked Date:</strong> {item.slotBookedDate ? new Date(item.slotBookedDate).toLocaleDateString('en-GB') : 'N/A'}<br />
+                  <strong>Total Price:</strong> ₹{item.price}<br /> {/* Display original price */}
+                </div>
+                <Button variant="danger" onClick={() => handleRemoveFromCart(item._id)}>Remove</Button>
+              </li>
+            ))}
+          </ul>
+          <hr />
+          <div className="d-flex justify-content-between">
+            <strong>Subtotal:</strong>
+            <span>₹{cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0).toFixed(2)}</span>
+          </div>
+          <div className="d-flex justify-content-between">
+            <strong>Discount Applied:</strong>
+            <span>₹{cart.length >= 2 ? 100 * (cart.length -1) : 0}</span>
+          </div>
+          <div className="d-flex justify-content-between">
+            <strong>Total Amount:</strong>
+            <span>₹{(cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0) - (cart.length >= 2 ? 100 * (cart.length -1) : 0)).toFixed(2)}</span>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowCartModal(false)}>Close</Button>
+          <Button variant="primary" onClick={handleProceedToPay}>Proceed to Pay</Button>
+        </Modal.Footer>
       </Modal>
 
       {/* Slot Booking Modal */}
       <Modal show={showSlotModal} onHide={() => setShowSlotModal(false)}>
-      <Modal.Header closeButton>
-        <Modal.Title>Book Slot</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        <div className="mb-3">
-          <label htmlFor="userid" className="form-label">User ID</label>
-          <input 
-            type="text" 
-            className="form-control" 
-            id="userid" 
-            value={personalDetails.userid} // Set user ID from userDetails
-            readOnly // Make it read-only
-          />
-        </div>
-        <div className="mb-3">
-          <label htmlFor="username" className="form-label">User Name</label>
-          <input 
-            type="text" 
-            className="form-control" 
-            id="username" 
-            value={personalDetails.Name} // Set user ID from userDetails
-            readOnly // Make it read-only
-          />
-        </div>
-        <div className="mb-3">
-          <label htmlFor="mobileNumber" className="form-label">Mobile Number</label>
-          <input 
-            type="text" 
-            className="form-control" 
-            id="mobileNumber" 
-            value={personalDetails.mobileNumber} // Set mobile number from userDetails
-            readOnly // Make it read-only
-          />
-        </div>
-        <div className="mb-3">
-          <label htmlFor="date" className="form-label">Select Date</label>
-          <input 
-            type="date" 
-            className="form-control" 
-            id="date" 
-            value={selectedDate} 
-            onChange={(e) => setSelectedDate(e.target.value)} 
-          />
-        </div>
-        <div className="mb-3">
-          <label htmlFor="time" className="form-label">Select Time Slot</label>
-          <select 
-            className="form-select" 
-            id="time" 
-            value={selectedTime} 
-            onChange={(e) => setSelectedTime(e.target.value)}
-          >
-            <option value="">Select Time</option>
-            {availableSlots.map((slot, index) => (
-              <option key={index} value={slot}>{slot}</option>
-            ))}
-          </select>
-        </div>
-        <div className="mb-3">
-          <label htmlFor="coordinates" className="form-label">Enter Coordinates (Lat, Lon)</label>
-          <input 
-            type="text" 
-            className="form-control" 
-            id="coordinates" 
-            value={coordinatesInput} 
-            onChange={handleCoordinatesChange} 
-            placeholder="Coordinates (lat, lon)"
-          />
-        </div>
-        <div className="mb-3">
-          <label htmlFor="address" className="form-label">Enter Address</label>
-          <input 
-            type="text" 
-            className="form-control" 
-            id="address" 
-            value={address} 
-            onChange={(e) => setAddress(e.target.value)} 
-            placeholder="Enter your address"
-          />
-        </div>
-        {/* Location section */}
-        <div className="mb-3">
-          <button onClick={getCurrentLocation} className="btn btn-primary">Get Location</button>
-          {/* <button onClick={confirmLocation} className="btn btn-success" style={{ marginLeft: '10px' }}>Confirm Location</button> */}
-          {pinnedPosition && (
-            <a
-              href={`https://www.google.com/maps?q=${pinnedPosition[0]},${pinnedPosition[1]}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ marginLeft: '10px' }}
-            >
-              <FontAwesomeIcon icon={faMapMarkerAlt} size="2x" style={{ color: 'red' }} />
-            </a>
-          )}
-        </div>
-        {error && <div className="alert alert-danger" role="alert">{error}</div>}
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="secondary" onClick={() => setShowSlotModal(false)}>Close</Button>
-        <Button variant="primary" onClick={handleConfirmBooking}>Confirm Booking</Button>
-      </Modal.Footer>
-      </Modal>
+        <Modal.Header closeButton>
+            <Modal.Title>Book Slot</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+            <div className="mb-3">
+                <label htmlFor="userid" className="form-label">User ID</label>
+                <input type="text" className="form-control" id="userid" value={personalDetails.userid} readOnly />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="username" className="form-label">User Name</label>
+                <input type="text" className="form-control" id="username" value={personalDetails.Name} readOnly />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="mobileNumber" className="form-label">Mobile Number</label>
+                <input type="text" className="form-control" id="mobileNumber" value={personalDetails.mobileNumber} readOnly />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="date" className="form-label">Select Date</label>
+                <input type="date" className="form-control" id="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="time" className="form-label">Select Time Slot</label>
+                <select className="form-select" id="time" value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)}>
+                    <option value="">Select Time</option>
+                    {availableSlots.map((slot, index) => (
+                        <option key={index} value={slot}>{slot}</option>
+                    ))}
+                </select>
+            </div>
+            <div className="mb-3">
+                <label htmlFor="coordinates" className="form-label">Enter Coordinates (Lat, Lon)</label>
+                <input type="text" className="form-control" id="coordinates" value={coordinatesInput} onChange={handleCoordinatesChange} placeholder="Coordinates (lat, lon)" />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="address" className="form-label">Enter Address</label>
+                <input type="text" className="form-control" id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Enter your address" />
+            </div>
+            <div className="mb-3">
+                <button onClick={getCurrentLocation} className="btn btn-primary">Get Location</button>
+                {pinnedPosition && (
+                    <a href={`https://www.google.com/maps?q=${pinnedPosition[0]},${pinnedPosition[1]}`} target="_blank" rel="noopener noreferrer" style={{ marginLeft: '10px' }}>
+                        <FontAwesomeIcon icon={faMapMarkerAlt} size="2x" style={{ color: 'red' }} />
+                    </a>
+                )}
+            </div>
+            {error && <div className="alert alert-danger" role="alert">{error}</div>}
+        </Modal.Body>
+        <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowSlotModal(false)}>Close</Button>
+            <Button variant="primary" onClick={handleConfirmBooking}>Confirm Booking</Button>
+        </Modal.Footer>
+    </Modal>
+
+    <Modal show={showSlotedModal} onHide={() => setShowSlotedModal(false)}>
+        <Modal.Header closeButton>
+            <Modal.Title>Book Slot</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+            <div className="mb-3">
+                <label htmlFor="userid" className="form-label">User ID</label>
+                <input type="text" className="form-control" id="userid" value={personalDetails.userid} readOnly />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="username" className="form-label">User Name</label>
+                <input type="text" className="form-control" id="username" value={personalDetails.Name} readOnly />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="mobileNumber" className="form-label">Mobile Number</label>
+                <input type="text" className="form-control" id="mobileNumber" value={personalDetails.mobileNumber} readOnly />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="date" className="form-label">Select Date</label>
+                <input type="date" className="form-control" id="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="time" className="form-label">Select Time Slot</label>
+                <select className="form-select" id="time" value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)}>
+                    <option value="">Select Time</option>
+                    {availableSlots.map((slot, index) => (
+                        <option key={index} value={slot}>{slot}</option>
+                    ))}
+                </select>
+            </div>
+            <div className="mb-3">
+                <label htmlFor="coordinates" className="form-label">Enter Coordinates (Lat, Lon)</label>
+                <input type="text" className="form-control" id="coordinates" value={coordinatesInput} onChange={handleCoordinatesChange} placeholder="Coordinates (lat, lon)" />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="address" className="form-label">Enter Address</label>
+                <input type="text" className="form-control" id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Enter your address" />
+            </div>
+            <div className="mb-3">
+                <button onClick={getCurrentLocation} className="btn btn-primary">Get Location</button>
+                {pinnedPosition && (
+                    <a href={`https://www.google.com/maps?q=${pinnedPosition[0]},${pinnedPosition[1]}`} target="_blank" rel="noopener noreferrer" style={{ marginLeft: '10px' }}>
+                        <FontAwesomeIcon icon={faMapMarkerAlt} size="2x" style={{ color: 'red' }} />
+                    </a>
+                )}
+            </div>
+            {error && <div className="alert alert-danger" role="alert">{error}</div>}
+        </Modal.Body>
+        <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowSlotedModal(false)}>Close</Button>
+            <Button variant="primary" onClick={handleConfirmBooking}>Confirm Booking</Button>
+        </Modal.Footer>
+    </Modal>
+
+    <Modal show={showCartedModal} onHide={() => setShowCartedModal(false)}>
+        <Modal.Header closeButton>
+            <Modal.Title>Cart</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+            <ul className="list-group">
+                {cart.map((item, index) => (
+                    <li className="list-group-item d-flex justify-content-between align-items-center" key={item._id}>
+                        <div>
+                            <strong>Type:</strong> {item.type}<br />
+                            <strong>Price:</strong> ₹{item.totalPrice}<br />
+                            <strong>Estimated Time:</strong> {item.time || 'N/A'}<br />
+                            <strong>Slot Booked Time:</strong> {item.slotBookedTime ? new Date(item.slotBookedTime).toLocaleTimeString() : 'N/A'}<br />
+                            <strong>Slot Booked Date:</strong> {item.slotBookedDate ? new Date(item.slotBookedDate).toLocaleDateString() : 'N/A'}<br />
+                            <strong>Total Price:</strong> ₹{item.totalPrice} <br />
+                        </div>
+                        <Button variant="danger" onClick={() => handleRemoveservicefromCart(item._id)}>Remove</Button>
+                    </li>
+                ))}
+            </ul>
+            <hr />
+            <div className="d-flex justify-content-between">
+                <strong>Subtotal:</strong>
+                <span>₹{cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0).toFixed(2)}</span>
+            </div>
+            <div className="d-flex justify-content-between">
+                <strong>Discount Applied:</strong>
+                {/* Apply discount only if more than one item is in the cart */}
+                <span>₹{cart.length > 1 ? 100 : 0}</span>
+            </div>
+            <div className="d-flex justify-content-between">
+                <strong>Total Amount:</strong>
+                <span>₹{(cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0) - (cart.length > 1 ? 100 : 0)).toFixed(2)}</span>
+            </div>
+        </Modal.Body>
+        <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowCartedModal(false)}>Close</Button>
+            <Button variant="primary" onClick={handleProceedToPay}>Proceed to Pay</Button>
+        </Modal.Footer>
+    </Modal>
 
       {/* Service Section */}
       <div className="service-section mb-4">
@@ -1293,26 +1274,13 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
                   <h5 className="card-title">{wrepair.name}</h5>
                   <p className="card-text">Type: {wrepair.type}</p>
                   <p className="card-text">Base Price: ₹{wrepair.price}</p>
-
+                  {/* Removed the checkboxes and display issues directly */}
                   <div className="form-group">
+                  <div><h5>Common Repair Issues</h5></div>
                     {wrepair.issues && wrepair.issues.length > 0 ? (
                       wrepair.issues.map((issue, issueIndex) => (
-                        <div className="form-check" key={issueIndex}>
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            value={issue}
-                            checked={selectedRepairIssues[wrepair._id]?.includes(issue) || false}
-                            onChange={() => handleRepairCheckboxChange(wrepair._id, issue)}
-                            id={`repair-issue-${wrepair._id}-${issueIndex}`}
-                          />
-                          <label
-                            className={`form-check-label ${selectedRepairIssues[wrepair._id]?.includes(issue) ? 'text-primary' : ''}`}
-                            htmlFor={`repair-issue-${wrepair._id}-${issueIndex}`}
-                          >
-                            {issue}
-                            {selectedRepairIssues[wrepair._id]?.includes(issue) && ' ✅'}
-                          </label>
+                        <div key={issueIndex}>
+                          <span className="text-muted">{issue}</span>
                         </div>
                       ))
                     ) : (
@@ -1322,7 +1290,7 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
                 </div>
 
                 <img
-                  src={`${process.env.PUBLIC_URL}/images/repair-${wrepair._id}.jpg`}
+                  src={`${process.env.PUBLIC_URL}${wrepair.image}`}
                   alt={wrepair.name}
                   style={{ height: '250px', width: '200px', objectFit: 'cover', marginLeft: '20px' }}
                 />
@@ -1331,7 +1299,7 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
               <div className="d-flex justify-content-between align-items-center p-2">
                 <Button
                   style={{ backgroundColor: '#007bff', borderColor: '#007bff' }}
-                  onClick={() => handleAddToCart(wrepair._id)}
+                  onClick={() => handleWashingMachineBooking(wrepair)} // Pass the whole repair object
                 >
                   Add to Cart
                 </Button>
@@ -1340,7 +1308,7 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
 
               <div className="card-footer text-center bg-light p-2">
                 <large className="text-muted">
-                  Total Price: ₹{calculateRepairTotalPrice(wrepair._id)}
+                  Total Price: ₹{wrepair.price}
                 </large>
               </div>
             </div>
@@ -1386,7 +1354,7 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
               <div className="d-flex justify-content-between align-items-center p-2">
                 <Button
                   style={{ backgroundColor: '#007bff', borderColor: '#007bff' }}
-                  onClick={() => handleAddToCart(winstallation.id)}
+                  onClick={() => handleWashingMachineBooking(winstallation)}
                 >
                   Add to Cart
                 </Button>
@@ -1440,7 +1408,7 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
               <div className="d-flex justify-content-between align-items-center p-2">
                 <Button
                   style={{ backgroundColor: '#007bff', borderColor: '#007bff' }}
-                  onClick={() => handleAddToCart(wuninstallation.id)}
+                  onClick={() => handleWashingMachineBooking(wuninstallation)}
                 >
                   Add to Cart
                 </Button>
