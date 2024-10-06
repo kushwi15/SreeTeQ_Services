@@ -52,6 +52,8 @@ const UserDashboard = () => {
   const [showSlotModal, setShowSlotModal] = useState(false);
   const [showCartedModal, setShowCartedModal] = useState(false);
   const [showSlotedModal, setShowSlotedModal] = useState(false);
+  const [showCarterModal, setShowCarterModal] = useState(false);
+  const [showSloterModal, setShowSloterModal] = useState(false);
   const [cart, setCart] = useState([]);
   const [location, setLocation] = useState('Fetching location...');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -640,99 +642,66 @@ const handleRemoveservicefromCart = (selectedServiceId) => {
   setCart((prevCart) => prevCart.filter((selectedService) => selectedService._id !== selectedServiceId));
 };
 
-
+ 
 const fridgePricePerIssue = 99;
+  // State for storing fridge data fetched from the backend
+  const [singleDoors, setSingleDoors] = useState([]);
+  const [doubleDoors, setDoubleDoors] = useState([]);
+  const [sideBySideDoors, setSideBySideDoors] = useState([]);
 
-const singledoors = [
-  {
-    id: 1,
-    name: 'Single Door Refrigerator',
-    type: 'Checkups',
-    price: 99,
-    time: '60 min',
-    doorissues: [
-      'Excess cooling',
-      'No cooling',
-      'Door not closing',
-      'Power issue',
-      'Noise',
-      'Water leakage',
-    ],
-  },
-];
+  // State for selected issues
+  const [selectedSingleDoorIssues, setSelectedSingleDoorIssues] = useState({});
+  const [selectedDoubleDoorIssues, setSelectedDoubleDoorIssues] = useState({});
+  const [selectedSideBySideDoorIssues, setSelectedSideBySideDoorIssues] = useState({});
 
-const doubledoors = [
-  {
-    id: 1,
-    name: 'Double Door Refrigerator',
-    type: 'Inverter',
-    price: 99,
-    time: '60 min',
-    doorissues: [
-      'Excess cooling',
-      'Less cooling',
-      'No cooling',
-      'Power Issue',
-      'Noise',
-      'Water leakage',
-    ],
-  },
-  {
-    id: 2,
-    name: 'Double Door Refrigerator',
-    type: 'Non-Inverter',
-    price: 99,
-    time: '60 min',
-    doorissues: [
-      'Excess cooling',
-      'Less cooling',
-      'No cooling',
-      'Power issue',
-      'Door not closing',
-      'Noise',
-      'Water leakage',
-    ],
-  },
-];
+  // Fetch fridge data from backend
+  useEffect(() => {
+    const fetchSingleDoors = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/singledoor');
+        setSingleDoors(response.data); // Assuming response.data is an array
+      } catch (error) {
+        console.error('Error fetching single door refrigerators:', error);
+      }
+    };
 
-const sidebysidedoors = [
-  {
-    id: 1,
-    name: 'Side-By-Side Door',
-    type: 'Checkups',
-    price: 99,
-    time: '60 min',
-    doorissues: [
-      'Excess cooling',
-      'No cooling',
-      'Door not closing',
-      'Cooling issue in deep freezer only',
-      'Power issue',
-      'Noise',
-      'Water leakage (ice bucket)',
-      'Water leakage (compartment)',
-    ],
-  },
-];
+    fetchSingleDoors();
+  }, []);
+  
+  useEffect(() => {
+    const fetchDoubleDoors = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/doubledoor');
+        setDoubleDoors(response.data); // Assuming response.data is an array
+      } catch (error) {
+        console.error('Error fetching single door refrigerators:', error);
+      }
+    };
 
-const [selectedSingleDoorIssues, setSelectedSingleDoorIssues] = useState({});
-const [selectedDoubleDoorIssues, setSelectedDoubleDoorIssues] = useState({});
-const [selectedSideBySideDoorIssues, setSelectedSideBySideDoorIssues] = useState({});
+    fetchDoubleDoors();
+  }, []);
 
-const handleSingleDoorIssueChange = (id, issue) => {
-  setSelectedSingleDoorIssues((prev) => {
-    const updatedIssues = prev[id] ? [...prev[id]] : [];
-    if (updatedIssues.includes(issue)) {
-      return { ...prev, [id]: updatedIssues.filter((i) => i !== issue) };
-    } else {
-      return { ...prev, [id]: [...updatedIssues, issue] };
-    }
-  });
-};
+  useEffect(() => {
+    const fetchsideBySideDoors = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/sidedoor');
+        setSideBySideDoors(response.data); // Assuming response.data is an array
+      } catch (error) {
+        console.error('Error fetching single door refrigerators:', error);
+      }
+    };
 
-  // Handle double door issue changes
-  const handleDoubleDoorIssueChange = (id, issue) => {
-    setSelectedDoubleDoorIssues((prev) => {
+    fetchsideBySideDoors();
+  }, []);
+  // Handle issue changes for different fridge types
+  const handleIssueChange = (id, issue, type) => {
+    const setSelectedIssues = {
+      'Single Door': setSelectedSingleDoorIssues,
+      'Double Door': setSelectedDoubleDoorIssues,
+      'Side-By-Side': setSelectedSideBySideDoorIssues,
+    }[type];
+
+    setSelectedIssues((prev) => {
       const updatedIssues = prev[id] ? [...prev[id]] : [];
       if (updatedIssues.includes(issue)) {
         return { ...prev, [id]: updatedIssues.filter((i) => i !== issue) };
@@ -742,39 +711,106 @@ const handleSingleDoorIssueChange = (id, issue) => {
     });
   };
 
-  // Handle side-by-side door issue changes
-  const handleSideBySideDoorIssueChange = (id, issue) => {
-    setSelectedSideBySideDoorIssues((prev) => {
-      const updatedIssues = prev[id] ? [...prev[id]] : [];
-      if (updatedIssues.includes(issue)) {
-        return { ...prev, [id]: updatedIssues.filter((i) => i !== issue) };
-      } else {
-        return { ...prev, [id]: [...updatedIssues, issue] };
-      }
-    });
+  // Calculate the total price based on selected issues for each fridge type
+  const calculateTotalPrice = (fridgeId, type) => {
+    const selectedIssues = {
+      'Single Door': selectedSingleDoorIssues[fridgeId],
+      'Double Door': selectedDoubleDoorIssues[fridgeId],
+      'Side-By-Side': selectedSideBySideDoorIssues[fridgeId],
+    }[type] || [];
+    return selectedIssues.length * fridgePricePerIssue;
   };
-
-// Calculate the total price based on selected issues for each fridge type
-const calculateFridgeTotalPrice = (fridgeId) => {
-  const issues = selectedSingleDoorIssues[fridgeId] || [];
-  return issues.length * fridgePricePerIssue;
-};
-
- // Calculate total price for double door refrigerators
- const calculateDoubleDoorTotalPrice = (fridgeId) => {
-  const issues = selectedDoubleDoorIssues[fridgeId] || [];
-  return issues.length * fridgePricePerIssue;
-};
-
-// Calculate total price for side-by-side door refrigerators
-const calculateSideBySideTotalPrice = (fridgeId) => {
-  const issues = selectedSideBySideDoorIssues[fridgeId] || [];
-  return issues.length * fridgePricePerIssue;
-};
-
-
 
   
+  // Example of handling cart item booking
+  const handleFridgeBooking = (fridge) => {
+
+    setCurrentItem(fridge);
+    setShowSloterModal(true); // Open slot booking modal
+  };
+  
+  
+  const handleRemovefridgefromCart = (fridgeId) => {
+    setCart((prevCart) => prevCart.filter((fridge) => fridge._id !== fridgeId));
+  };
+  
+  const handleConformBooking = async () => {
+    try {
+        // Retrieve user ID from localStorage
+        const userid = localStorage.getItem('user_id');
+        if (!userid) {
+            setError('User ID not found. Please log in again.');
+            return;
+        }
+
+        // Validate all fields are provided
+        if (!selectedDate || !selectedTime || !address || !coordinatesInput) {
+            setError('All fields are required.');
+            return;
+        }
+
+        // Parse date and time to create a valid JavaScript Date object
+        const [day, month, year] = selectedDate.split('-').map(Number);
+        let [time, modifier] = selectedTime.split(' ');
+        let [hour, minute] = time.split(':').map(Number);
+
+        if (modifier === 'PM' && hour < 12) {
+            hour += 12;
+        } else if (modifier === 'AM' && hour === 12) {
+            hour = 0;
+        }
+
+        const slotBookedTime = new Date(year, month - 1, day, hour, minute);
+        if (isNaN(slotBookedTime.getTime())) {
+            setError('Invalid date or time. Please try again.');
+            return;
+        }
+
+        // Parse item price and ensure it's a valid number
+        const itemPrice = typeof currentItem.price === 'number'
+            ? currentItem.price
+            : parseFloat(currentItem?.price?.replace(/[^0-9.-]+/g, '')) || 0;
+
+        const itemTotalPrice = itemPrice;
+
+        // Extract and validate latitude and longitude from coordinates input
+        const coordinates = coordinatesInput.split(',').map(Number); // Extracting lat, lon
+        if (coordinates.length !== 2 || isNaN(coordinates[0]) || isNaN(coordinates[1])) {
+            setError('Invalid coordinates. Please enter valid latitude and longitude.');
+            return;
+        }
+
+        // Prepare cart item to be sent to the backend
+        const cartItem = {
+            ...currentItem,
+            userid: personalDetails.userid,
+            username: personalDetails.Name,
+            mobileNumber: personalDetails.mobileNumber,
+            slotBookedTime: slotBookedTime.toISOString(),
+            slotBookedDate: selectedDate,
+            estimatedTime: currentItem.estimatedTime || 'N/A',
+            totalPrice: itemTotalPrice,
+            address,
+            coordinates: { lat: coordinates[0], lon: coordinates[1] }
+        };
+
+        // Add the item to the local cart
+        const updatedCart = [...cart, cartItem];
+        setCart(updatedCart);
+
+        // Clear selected fields and hide slot modal, show cart modal
+        setSelectedDate('');
+        setSelectedTime('');
+        setShowSlotModal(false);
+        setShowCartModal(true);
+
+        // Send cart item to the backend
+        await axios.post('http://localhost:5000/api/carts', cartItem);
+    } catch (error) {
+        console.error('Error during booking process:', error);
+        setError('An error occurred during the booking process.');
+    }
+};
 
   return (
     <div className="container">
@@ -819,8 +855,8 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
       </div>
       </header>
       
-            {/* Cart Modal */}
-      <Modal show={showCartModal} onHide={() => setShowCartModal(false)}>
+    {/* Cart Modal */}
+    <Modal show={showCartModal} onHide={() => setShowCartModal(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Cart</Modal.Title>
         </Modal.Header>
@@ -848,21 +884,21 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
           </div>
           <div className="d-flex justify-content-between">
             <strong>Discount Applied:</strong>
-            <span>₹{cart.length >= 2 ? 100 * (cart.length -1) : 0}</span>
+            <span>₹{cart.length >= 2 ? 100 : 0}</span> {/* Apply ₹100 flat discount */}
           </div>
           <div className="d-flex justify-content-between">
             <strong>Total Amount:</strong>
-            <span>₹{(cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0) - (cart.length >= 2 ? 100 * (cart.length -1) : 0)).toFixed(2)}</span>
+            <span>₹{(cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0) - (cart.length >= 2 ? 100 : 0)).toFixed(2)}</span>
           </div>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowCartModal(false)}>Close</Button>
           <Button variant="primary" onClick={handleProceedToPay}>Proceed to Pay</Button>
         </Modal.Footer>
-      </Modal>
+    </Modal>
 
-      {/* Slot Booking Modal */}
-      <Modal show={showSlotModal} onHide={() => setShowSlotModal(false)}>
+    {/* Slot Booking Modal */}
+    <Modal show={showSlotModal} onHide={() => setShowSlotModal(false)}>
         <Modal.Header closeButton>
             <Modal.Title>Book Slot</Modal.Title>
         </Modal.Header>
@@ -998,7 +1034,7 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
             <div className="d-flex justify-content-between">
                 <strong>Discount Applied:</strong>
                 {/* Apply discount only if more than one item is in the cart */}
-                <span>₹{cart.length > 1 ? 100 : 0}</span>
+                <span>₹{cart.length >= 2 ? 100 : 0}</span>
             </div>
             <div className="d-flex justify-content-between">
                 <strong>Total Amount:</strong>
@@ -1007,6 +1043,101 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
         </Modal.Body>
         <Modal.Footer>
             <Button variant="secondary" onClick={() => setShowCartedModal(false)}>Close</Button>
+            <Button variant="primary" onClick={handleProceedToPay}>Proceed to Pay</Button>
+        </Modal.Footer>
+    </Modal>
+
+    <Modal show={showSloterModal} onHide={() => setShowSloterModal(false)}>
+        <Modal.Header closeButton>
+            <Modal.Title>Book Slot</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+            <div className="mb-3">
+                <label htmlFor="userid" className="form-label">User ID</label>
+                <input type="text" className="form-control" id="userid" value={personalDetails.userid} readOnly />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="username" className="form-label">User Name</label>
+                <input type="text" className="form-control" id="username" value={personalDetails.Name} readOnly />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="mobileNumber" className="form-label">Mobile Number</label>
+                <input type="text" className="form-control" id="mobileNumber" value={personalDetails.mobileNumber} readOnly />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="date" className="form-label">Select Date</label>
+                <input type="date" className="form-control" id="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="time" className="form-label">Select Time Slot</label>
+                <select className="form-select" id="time" value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)}>
+                    <option value="">Select Time</option>
+                    {availableSlots.map((slot, index) => (
+                        <option key={index} value={slot}>{slot}</option>
+                    ))}
+                </select>
+            </div>
+            <div className="mb-3">
+                <label htmlFor="coordinates" className="form-label">Enter Coordinates (Lat, Lon)</label>
+                <input type="text" className="form-control" id="coordinates" value={coordinatesInput} onChange={handleCoordinatesChange} placeholder="Coordinates (lat, lon)" />
+            </div>
+            <div className="mb-3">
+                <label htmlFor="address" className="form-label">Enter Address</label>
+                <input type="text" className="form-control" id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Enter your address" />
+            </div>
+            <div className="mb-3">
+                <button onClick={getCurrentLocation} className="btn btn-primary">Get Location</button>
+                {pinnedPosition && (
+                    <a href={`https://www.google.com/maps?q=${pinnedPosition[0]},${pinnedPosition[1]}`} target="_blank" rel="noopener noreferrer" style={{ marginLeft: '10px' }}>
+                        <FontAwesomeIcon icon={faMapMarkerAlt} size="2x" style={{ color: 'red' }} />
+                    </a>
+                )}
+            </div>
+            {error && <div className="alert alert-danger" role="alert">{error}</div>}
+        </Modal.Body>
+        <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowSloterModal(false)}>Close</Button>
+            <Button variant="primary" onClick={handleConfirmBooking}>Confirm Booking</Button>
+        </Modal.Footer>
+    </Modal>
+
+    <Modal show={showCarterModal} onHide={() => setShowCarterModal(false)}>
+        <Modal.Header closeButton>
+            <Modal.Title>Cart</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+            <ul className="list-group">
+                {cart.map((item, index) => (
+                    <li className="list-group-item d-flex justify-content-between align-items-center" key={item._id}>
+                        <div>
+                            <strong>Type:</strong> {item.type}<br />
+                            <strong>Price:</strong> ₹{item.totalPrice}<br />
+                            <strong>Estimated Time:</strong> {item.time || 'N/A'}<br />
+                            <strong>Slot Booked Time:</strong> {item.slotBookedTime ? new Date(item.slotBookedTime).toLocaleTimeString() : 'N/A'}<br />
+                            <strong>Slot Booked Date:</strong> {item.slotBookedDate ? new Date(item.slotBookedDate).toLocaleDateString() : 'N/A'}<br />
+                            <strong>Total Price:</strong> ₹{item.totalPrice} <br />
+                        </div>
+                        <Button variant="danger" onClick={() => handleRemoveservicefromCart(item._id)}>Remove</Button>
+                    </li>
+                ))}
+            </ul>
+            <hr />
+            <div className="d-flex justify-content-between">
+                <strong>Subtotal:</strong>
+                <span>₹{cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0).toFixed(2)}</span>
+            </div>
+            <div className="d-flex justify-content-between">
+                <strong>Discount Applied:</strong>
+                {/* Apply discount only if more than one item is in the cart */}
+                <span>₹{cart.length >= 2 ? 100 : 0}</span>
+            </div>
+            <div className="d-flex justify-content-between">
+                <strong>Total Amount:</strong>
+                <span>₹{(cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0) - (cart.length > 1 ? 100 : 0)).toFixed(2)}</span>
+            </div>
+        </Modal.Body>
+        <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowCarterModal(false)}>Close</Button>
             <Button variant="primary" onClick={handleProceedToPay}>Proceed to Pay</Button>
         </Modal.Footer>
     </Modal>
@@ -1054,50 +1185,99 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
       {/* Floating Menu Bar */}
       <div className="container mt-5">
       <div className="floating-menu-container">
-        <div className="menu-button-container">
-          <button
-            className="btn btn-primary floating-menu"
-            id="menuButton"
-            onClick={toggleMenu}
-          >
-            Menu
-          </button>
-        </div>
-        <div className={`floating-menu-bar ${menuOpen ? 'show' : ''}`}>
-          <Link
-            to="service-section"
-            smooth={true}
-            duration={500}
-            className="menu-option"
-            onClick={toggleMenu} 
-          >
-            Service <FontAwesomeIcon icon={faToolbox} className="ms-2" />
-          </Link>
-          <Link
-            to="repair-section"
-            smooth={true}
-            duration={500}
-            className="menu-option"
-            onClick={toggleMenu} 
-          >
-            Repair <FontAwesomeIcon icon={faScrewdriverWrench} className="ms-2" />
-          </Link>
-          <Link
-            to="install-section"
-            smooth={true}
-            duration={500}
-            className="menu-option"
-            onClick={toggleMenu}
-          >
-            Install <FontAwesomeIcon icon={faPlus} className="ms-2" />
-          </Link>
-        </div>
+      <div className="menu-button-container">
+        <button
+          className="btn btn-primary floating-menu"
+          id="menuButton"
+          onClick={toggleMenu}
+        >
+          Menu
+        </button>
       </div>
+      <div className={`floating-menu-bar ${menuOpen ? 'show' : ''}`}>
+        <Link
+          to="service-section"
+          smooth={true}
+          duration={500}
+          className="menu-option"
+          onClick={toggleMenu}
+        >
+          AC
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            viewBox="0 0 24 24"
+            className="ms-2"
+          >
+            <path d="M2 12h20M5 12l-3 3h3v3h2v-3h2v3h2v-3h2v3h2v-3h3l-3-3" />
+            <path d="M4 4h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+          </svg>
+        </Link>
+        <Link
+          to="repair-section"
+          smooth={true}
+          duration={500}
+          className="menu-option"
+          onClick={toggleMenu}
+        >
+          Machine
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            viewBox="0 0 24 24"
+            className="ms-2"
+          >
+            <path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+            <circle cx="12" cy="12" r="4" />
+            <path d="M7 8h10v8H7z" />
+          </svg>
+        </Link>
+        <Link
+          to="install-section"
+          smooth={true}
+          duration={500}
+          className="menu-option"
+          onClick={toggleMenu}
+        >
+          Fridge
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            viewBox="0 0 24 24"
+            className="ms-2"
+          >
+            <path d="M4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" />
+            <path d="M6 2v20" />
+            <path d="M18 2v20" />
+            <path d="M6 8h12v12H6z" />
+          </svg>
+        </Link>
+      </div>
+    </div>
       {/* Service Section */}
       <div id="service-section" className="d-flex justify-content-between align-items-center mb-2">
-        <h2 style={{ fontSize: '2.5rem' }}>Service</h2>
+        <h2 style={{ fontSize: '2.5rem' }}>AC Service</h2>
         <a href="#service-section" className="text-primary">Know more</a>
       </div>
+      <h3>Services</h3>
       <div className="row">
         {services.map((service) => (
           <div className="col-md-6 mb-4" key={service.id}>
@@ -1149,10 +1329,7 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
       <br/>
 
         {/* Repair Section */}
-        <div id="repair-section" className="d-flex justify-content-between align-items-center mb-2">
-          <h2 style={{ fontSize: '2.5rem' }}>Repair & Gas Refill</h2>
-          <a href="#repair-section" className="text-primary">Know more</a>
-        </div>
+        <h3>Repairs</h3>
         <div className="row">
           {repairs.map((repair) => (
             <div className="col-md-6 mb-4" key={repair.id}>
@@ -1203,11 +1380,7 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
         </div>
       <br/>
 
-        {/* install Section */}
-        <div id="install-section" className="d-flex justify-content-between align-items-center mb-2">
-          <h2 style={{ fontSize: '2.5rem' }}>Install & Uninstall</h2>
-          <a href="#install-section" className="text-primary">Know more</a>
-        </div>
+      <h3>Installation & Uninstallation</h3>
         <div className="row">
           {installations.map((installation) => (
             <div className="col-md-6 mb-4" key={installation.id}>
@@ -1261,7 +1434,10 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
     </div>
 
     <div className='container'>
-      <h2 style={{ fontSize: '2.5rem' }}>Washing Machine Service</h2>
+      <div id="repair-section" className="d-flex justify-content-between align-items-center mb-2">
+          <h2 style={{ fontSize: '2.5rem' }}>Washing Machine Service</h2>
+          <a href="#repair-section" className="text-primary">Know more</a>
+        </div>
 
       {/* Repairs Section */}
       <h3>Repairs</h3>
@@ -1274,18 +1450,22 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
                   <h5 className="card-title">{wrepair.name}</h5>
                   <p className="card-text">Type: {wrepair.type}</p>
                   <p className="card-text">Base Price: ₹{wrepair.price}</p>
-                  {/* Removed the checkboxes and display issues directly */}
+
+                  {/* Styled Issues Section */}
                   <div className="form-group">
-                  <div><h5>Common Repair Issues</h5></div>
-                    {wrepair.issues && wrepair.issues.length > 0 ? (
-                      wrepair.issues.map((issue, issueIndex) => (
-                        <div key={issueIndex}>
-                          <span className="text-muted">{issue}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p>No issues available</p>
-                    )}
+                    <p><b>We will can check all issues</b></p>
+                    <ul className="list-unstyled">
+                      {wrepair.issues && wrepair.issues.length > 0 ? (
+                        wrepair.issues.map((issue, issueIndex) => (
+                          <li key={issueIndex} className="text-muted">
+                            <i className="fas fa-circle" style={{ fontSize: '8px', marginRight: '5px' }}></i>
+                            {issue}
+                          </li>
+                        ))
+                      ) : (
+                        <li>No issues available</li>
+                      )}
+                    </ul>
                   </div>
                 </div>
 
@@ -1426,222 +1606,172 @@ const calculateSideBySideTotalPrice = (fridgeId) => {
     </div>
 
     <div className='container'>
-    <h2 style={{ fontSize: '2.5rem' }}>Refrigerators Service</h2>
-      <h3> Single Door Issues</h3>
-      <div className="row">
-        {singledoors.map((singledoor) => (
-          <div className="col-md-6 mb-4" key={singledoor.id}>
+    {/* install Section */}
+    <div id="install-section" className="d-flex justify-content-between align-items-center mb-2">
+          <h2 style={{ fontSize: '2.5rem' }}>Refrigerator Services</h2>
+          <a href="#install-section" className="text-primary">Know more</a>
+        </div>
+
+    {/* Single Door Issues Section */}
+    <h3>Single Door Issues</h3>
+    <div className="row">
+      {singleDoors.length > 0 ? (
+        singleDoors.map((singleDoor) => (
+          <div className="col-md-6 mb-4" key={singleDoor._id}>
             <div className="card h-100">
               <div className="card-body d-flex align-items-center justify-content-between">
-                {/* Text Section */}
                 <div>
-                  <h5 className="card-title">{singledoor.name}</h5>
-                  <p className="card-text">Type: {singledoor.type}</p>
-                  <p className="card-text">Base Price: ₹{singledoor.price}</p>
+                  <h5 className="card-title">{singleDoor.name}</h5>
+                  <p className="card-text">Type: {singleDoor.fridgeType}</p>
+                  <p className="card-text">Base Price: ₹{singleDoor.price}</p>
                   <div className="form-group">
-                    {singledoor.doorissues && singledoor.doorissues.length > 0 ? (
-                      singledoor.doorissues.map((issue, issueIndex) => (
-                        <div className="form-check" key={issueIndex}>
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={selectedSingleDoorIssues[singledoor.id]?.includes(issue) || false}
-                            onChange={() => handleSingleDoorIssueChange(singledoor.id, issue)}
-                            id={`single-door-issue-${singledoor.id}-${issueIndex}`}
-                          />
-                          <label
-                            className={`form-check-label ${selectedSingleDoorIssues[singledoor.id]?.includes(issue) ? 'text-primary' : ''}`}
-                            htmlFor={`single-door-issue-${singledoor.id}-${issueIndex}`}
-                          >
-                            {issue}
-                            {selectedSingleDoorIssues[singledoor.id]?.includes(issue) && ' ✅'}
-                          </label>
-                        </div>
-                      ))
+                  <p><b>per issue it was ₹99</b></p>
+                    {singleDoor.doorIssues && singleDoor.doorIssues.length > 0 ? (
+                      <ul>
+                        {singleDoor.doorIssues.map((issue, issueIndex) => (
+                          <li key={issueIndex} className="text-muted">{issue}</li>
+                        ))}
+                      </ul>
                     ) : (
                       <p>No issues available</p>
                     )}
                   </div>
                 </div>
-
-                {/* Image Section */}
                 <img
-                  src={`${process.env.PUBLIC_URL}/images/fridge-${singledoor.id}.jpg`} // Assuming images follow this naming convention
-                  alt={singledoor.name}
-                  style={{
-                    height: '250px',
-                    width: '200px',
-                    objectFit: 'cover',
-                    marginLeft: '20px',
-                  }}
+                  src={`${process.env.PUBLIC_URL}${singleDoor.image}`}
+                  alt={singleDoor.name}
+                  style={{ height: '250px', width: '200px', objectFit: 'cover', marginLeft: '20px' }}
                 />
               </div>
-
-              {/* Add to Cart and Estimated Time */}
               <div className="d-flex justify-content-between align-items-center p-2">
                 <Button
                   style={{ backgroundColor: '#007bff', borderColor: '#007bff' }}
-                  onClick={() => handleAddToCart(singledoor)}
+                  onClick={() => handleFridgeBooking(singleDoor)}
                 >
                   Add to Cart
                 </Button>
-                <span className="text-muted">Estimated Time: {singledoor.time}</span>
+                <span className="text-muted">Estimated Time: {singleDoor.time}</span>
               </div>
-
-              {/* Price Calculation */}
               <div className="card-footer text-center bg-light p-2">
                 <large className="text-muted">
-                  Total Price: ₹{calculateFridgeTotalPrice(singledoor.id)}
+                  Total Price: ₹{singleDoor.price}
                 </large>
               </div>
             </div>
           </div>
-        ))}
-      </div>
-      <h3> Double Door Issues</h3>
-      <div className="row">
-        {doubledoors.map((doubledoor) => (
-          <div className="col-md-6 mb-4" key={doubledoor.id}>
-            <div className="card h-100">
-              <div className="card-body d-flex align-items-center justify-content-between">
-                {/* Text Section */}
-                <div>
-                  <h5 className="card-title">{doubledoor.name}</h5>
-                  <p className="card-text">Type: {doubledoor.type}</p>
-                  <p className="card-text">Base Price: ₹{doubledoor.price}</p>
-                  <div className="form-group">
-                    {doubledoor.doorissues && doubledoor.doorissues.length > 0 ? (
-                      doubledoor.doorissues.map((issue, issueIndex) => (
-                        <div className="form-check" key={issueIndex}>
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={selectedDoubleDoorIssues[doubledoor.id]?.includes(issue) || false}
-                            onChange={() => handleDoubleDoorIssueChange(doubledoor.id, issue)}
-                            id={`double-door-issue-${doubledoor.id}-${issueIndex}`}
-                          />
-                          <label
-                            className={`form-check-label ${selectedDoubleDoorIssues[doubledoor.id]?.includes(issue) ? 'text-primary' : ''}`}
-                            htmlFor={`double-door-issue-${doubledoor.id}-${issueIndex}`}
-                          >
-                            {issue}
-                            {selectedDoubleDoorIssues[doubledoor.id]?.includes(issue) && ' ✅'}
-                          </label>
-                        </div>
-                      ))
-                    ) : (
-                      <p>No issues available</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Image Section */}
-                <img
-                  src={`${process.env.PUBLIC_URL}/images/fridge-${doubledoor.id}.jpg`} // Assuming images follow this naming convention
-                  alt={doubledoor.name}
-                  style={{
-                    height: '250px',
-                    width: '200px',
-                    objectFit: 'cover',
-                    marginLeft: '20px',
-                  }}
-                />
-              </div>
-
-              {/* Add to Cart and Estimated Time */}
-              <div className="d-flex justify-content-between align-items-center p-2">
-                <Button
-                  style={{ backgroundColor: '#007bff', borderColor: '#007bff' }}
-                  onClick={() => handleAddToCart(doubledoor)}
-                >
-                  Add to Cart
-                </Button>
-                <span className="text-muted">Estimated Time: {doubledoor.time}</span>
-              </div>
-
-              {/* Price Calculation */}
-              <div className="card-footer text-center bg-light p-2">
-                <large className="text-muted">
-                  Total Price: ₹{calculateDoubleDoorTotalPrice(doubledoor.id)}
-                </large>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <h3> Side-by-side Door Issues</h3>
-      <div className="row">
-        {sidebysidedoors.map((sidebysidedoor) => (
-          <div className="col-md-6 mb-4" key={sidebysidedoor.id}>
-            <div className="card h-100">
-              <div className="card-body d-flex align-items-center justify-content-between">
-                {/* Text Section */}
-                <div>
-                  <h5 className="card-title">{sidebysidedoor.name}</h5>
-                  <p className="card-text">Type: {sidebysidedoor.type}</p>
-                  <p className="card-text">Base Price: ₹{sidebysidedoor.price}</p>
-                  <div className="form-group">
-                    {sidebysidedoor.doorissues && sidebysidedoor.doorissues.length > 0 ? (
-                      sidebysidedoor.doorissues.map((issue, issueIndex) => (
-                        <div className="form-check" key={issueIndex}>
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={selectedSideBySideDoorIssues[sidebysidedoor.id]?.includes(issue) || false}
-                            onChange={() => handleSideBySideDoorIssueChange(sidebysidedoor.id, issue)}
-                            id={`sidebyside-door-issue-${sidebysidedoor.id}-${issueIndex}`}
-                          />
-                          <label
-                            className={`form-check-label ${selectedSideBySideDoorIssues[sidebysidedoor.id]?.includes(issue) ? 'text-primary' : ''}`}
-                            htmlFor={`sidebyside-door-issue-${sidebysidedoor.id}-${issueIndex}`}
-                          >
-                            {issue}
-                            {selectedSideBySideDoorIssues[sidebysidedoor.id]?.includes(issue) && ' ✅'}
-                          </label>
-                        </div>
-                      ))
-                    ) : (
-                      <p>No issues available</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Image Section */}
-                <img
-                  src={`${process.env.PUBLIC_URL}/images/fridge-${sidebysidedoor.id}.jpg`} // Assuming images follow this naming convention
-                  alt={sidebysidedoor.name}
-                  style={{
-                    height: '250px',
-                    width: '200px',
-                    objectFit: 'cover',
-                    marginLeft: '20px',
-                  }}
-                />
-              </div>
-
-              {/* Add to Cart and Estimated Time */}
-              <div className="d-flex justify-content-between align-items-center p-2">
-                <Button
-                  style={{ backgroundColor: '#007bff', borderColor: '#007bff' }}
-                  onClick={() => handleAddToCart(sidebysidedoor)}
-                >
-                  Add to Cart
-                </Button>
-                <span className="text-muted">Estimated Time: {sidebysidedoor.time}</span>
-              </div>
-
-              {/* Price Calculation */}
-              <div className="card-footer text-center bg-light p-2">
-                <large className="text-muted">
-                  Total Price: ₹{calculateSideBySideTotalPrice(sidebysidedoor.id)}
-                </large>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    
+        ))
+      ) : (
+        <p>No Single Door Refrigerators Available</p>
+      )}
     </div>
+
+    {/* Double Door Issues Section */}
+    <h3>Double Door Issues</h3>
+    <div className="row">
+      {doubleDoors.length > 0 ? (
+        doubleDoors.map((doubleDoor) => (
+          <div className="col-md-6 mb-4" key={doubleDoor._id}>
+            <div className="card h-100">
+              <div className="card-body d-flex align-items-center justify-content-between">
+                <div>
+                  <h5 className="card-title">{doubleDoor.name}</h5>
+                  <p className="card-text">Type: {doubleDoor.fridgeType}</p>
+                  <p className="card-text">Base Price: ₹{doubleDoor.price}</p>
+                  <div className="form-group">
+                  <p><b>per issue it was ₹99</b></p>
+                    {doubleDoor.doorIssues && doubleDoor.doorIssues.length > 0 ? (
+                      <ul>
+                        {doubleDoor.doorIssues.map((issue, issueIndex) => (
+                          <li key={issueIndex} className="text-muted">{issue}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>No issues available</p>
+                    )}
+                  </div>
+                </div>
+                <img
+                  src={`${process.env.PUBLIC_URL}${doubleDoor.image}`}
+                  alt={doubleDoor.name}
+                  style={{ height: '250px', width: '200px', objectFit: 'cover', marginLeft: '20px' }}
+                />
+              </div>
+              <div className="d-flex justify-content-between align-items-center p-2">
+                <Button
+                  style={{ backgroundColor: '#007bff', borderColor: '#007bff' }}
+                  onClick={() => handleFridgeBooking(doubleDoor)}
+                >
+                  Add to Cart
+                </Button>
+                <span className="text-muted">Estimated Time: {doubleDoor.time}</span>
+              </div>
+              <div className="card-footer text-center bg-light p-2">
+                <large className="text-muted">
+                  Total Price: ₹{doubleDoor.price}
+                </large>
+              </div>
+            </div>
+          </div>
+        ))
+      ) : (
+        <p>No Double Door Refrigerators Available</p>
+      )}
+    </div>
+
+    {/* Side-by-Side Door Issues Section */}
+    <h3>Side-By-Side Door Issues</h3>
+    <div className="row">
+      {sideBySideDoors.length > 0 ? (
+        sideBySideDoors.map((sideBySideDoor) => (
+          <div className="col-md-6 mb-4" key={sideBySideDoor._id}>
+            <div className="card h-100">
+              <div className="card-body d-flex align-items-center justify-content-between">
+                <div>
+                  <h5 className="card-title">{sideBySideDoor.name}</h5>
+                  <p className="card-text">Type: {sideBySideDoor.fridgeType}</p>
+                  <p className="card-text">Base Price: ₹{sideBySideDoor.price}</p>
+                  <div className="form-group">
+                  <p><b>per issue it was ₹99</b></p>
+                    {sideBySideDoor.doorIssues && sideBySideDoor.doorIssues.length > 0 ? (
+                      <ul>
+                        {sideBySideDoor.doorIssues.map((issue, issueIndex) => (
+                          <li key={issueIndex} className="text-muted">{issue}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>No issues available</p>
+                    )}
+                  </div>
+                </div>
+                <img
+                  src={`${process.env.PUBLIC_URL}${sideBySideDoor.image}`}
+                  alt={sideBySideDoor.name}
+                  style={{ height: '250px', width: '200px', objectFit: 'cover', marginLeft: '20px' }}
+                />
+              </div>
+              <div className="d-flex justify-content-between align-items-center p-2">
+                <Button
+                  style={{ backgroundColor: '#007bff', borderColor: '#007bff' }}
+                  onClick={() => handleFridgeBooking(sideBySideDoor)}
+                >
+                  Add to Cart
+                </Button>
+                <span className="text-muted">Estimated Time: {sideBySideDoor.time}</span>
+              </div>
+              <div className="card-footer text-center bg-light p-2">
+                <large className="text-muted">
+                  Total Price: ₹{sideBySideDoor.price}
+                </large>
+              </div>
+            </div>
+          </div>
+        ))
+      ) : (
+        <p>No Side By Side Door Refrigerators Available</p>
+      )}
+    </div>
+  </div>
+
 
     {/* chat Bot*/}
     {/* <div> */}
