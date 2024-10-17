@@ -2,15 +2,13 @@ import React, { useState,useEffect } from 'react';
 import { Pie } from 'react-chartjs-2';
 import './UserDashboard.css';
 import axios from "axios";
+import { jsPDF } from 'jspdf';
 // import AuthStore from '../Navbars/AuthStore';
 import 'assets/css/bootstrap.min.css';
 import { Link, } from 'react-scroll';
 import { Card, CardBody, CardTitle, CardText, Button} from 'react-bootstrap'; 
 import { Container, Row, Col} from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faScrewdriverWrench } from '@fortawesome/free-solid-svg-icons';
-import { faToolbox } from '@fortawesome/free-solid-svg-icons';
-import { faPlus } from '@fortawesome/free-solid-svg-icons';
 import FAQ from './FAQ';
 import { faBell,faUserCircle,faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons';
 import { Modal, Badge } from 'react-bootstrap';
@@ -62,6 +60,8 @@ const UserDashboard = () => {
   const [error, setError] = useState('');
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [cartHistory, setCartHistory] = useState([]);
   const navigate = useNavigate();
   // ... other code
    
@@ -148,9 +148,6 @@ useEffect(() => {
     const userId = localStorage.getItem('user_id');
     const token = localStorage.getItem('user_token');
 
-    console.log('UserID:', userId);
-    console.log('Token:', token);
-
     if (!token) {
       setError('Token is missing. Please log in.');
       navigate('/login');
@@ -159,7 +156,6 @@ useEffect(() => {
 
     try {
       const decodedToken = jwtDecode(token);
-      console.log('Decoded Token:', decodedToken);
 
       // Ensure the token structure matches your backend's expectations
       if (!decodedToken.userid) {
@@ -173,15 +169,11 @@ useEffect(() => {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        console.log('API Response:', response);
-
         const userDetails = response.data;
 
         if (!userDetails) {
           throw new Error('User details are not available.');
         }
-
-        console.log('User Details:', userDetails);
 
         setPersonalDetails({
           userid: userDetails.userid || '',
@@ -194,7 +186,6 @@ useEffect(() => {
         navigate('/login');
       }
     } catch (error) {
-      console.error('Failed to load user data:', error);
       if (error.response && error.response.status === 401) {
         navigate('/login');
       }
@@ -237,10 +228,6 @@ const handleLogout = () => {
       ]);
   
       // Log the fetched data for debugging
-      console.log('Services Data:', servicesResponse.data);
-      console.log('Repairs Data:', repairsResponse.data);
-      console.log('Installations Data:', installationsResponse.data);
-      console.log('Notifications Data:', notificationsResponse.data);
   
       // Set state with the fetched data
       setServices(servicesResponse.data);  
@@ -263,6 +250,100 @@ const handleLogout = () => {
     fetchData();
   }, []);
 
+
+ // For RazorPay
+  // const handleProceedToPay = async () => {
+  //   try {
+  //     const userid = localStorage.getItem('user_id'); // Retrieve user_id from localStorage
+  
+  //     if (!userid) {
+  //       throw new Error('Userid is required for payment processing');
+  //     }
+  
+  //     if (!cart || cart.length === 0) {
+  //       throw new Error('Cart is empty');
+  //     }
+  
+  //     // Calculate subtotal amount from cart (before any discount)
+  //     const subtotal = cart.reduce((total, item) => {
+  //       const itemPrice = parseFloat(item.price) || 0;
+  //       return total + itemPrice;
+  //     }, 0);
+  
+  //     console.log('Subtotal Calculated:', subtotal);
+  
+  //     // Apply the discount of ₹100 for second item onwards
+  //     const discount = cart.length > 1 ? 100 : 0;
+  
+  //     // Calculate the final total amount after discount
+  //     const totalAmount = subtotal - discount;
+  
+  //     console.log('Total Amount Calculated (after discount):', totalAmount);
+  
+  //     if (totalAmount <= 0) {
+  //       throw new Error('Total amount must be greater than zero');
+  //     }
+  
+  //     if (!address) {
+  //       throw new Error('Address is required for payment processing');
+  //     }
+  
+  //     // Razorpay Integration
+  //     var options = {
+  //       key: "rzp_test_d4pLXa7gyQuEX9", // Your Razorpay Key
+  //       key_secret: "qjlkJruOyIz689EqqqMK2pNn", // Razorpay Secret
+  //       amount: totalAmount * 100, // Razorpay accepts amount in paise
+  //       currency: "INR",
+  //       name: "SreeTeQ Services", // Your company/service name
+  //       description: "Payment for AC Repair Services",
+  //       handler: async function (response) {
+  //         const razorpayPaymentId = response.razorpay_payment_id;
+  
+  //         alert(`Payment Successful! Payment ID: ${razorpayPaymentId}`);
+  
+  //         // Send the transactionId (razorpayPaymentId) to the backend
+  //         const paymentResponse = await axios.post('http://localhost:5000/api/payment', {
+  //           userid,
+  //           amount: totalAmount,
+  //           address,
+  //           cart,
+  //           transactionId: razorpayPaymentId,  // Pass Razorpay payment ID to backend
+  //         });
+  
+  //         console.log('Backend Payment response:', paymentResponse.data);
+  
+  //         setNotifications(prevNotifications => [
+  //           ...prevNotifications,
+  //           {
+  //             id: new Date().getTime(),
+  //             message: 'Thank you for choosing our services. Payment was successful.',
+  //           },
+  //         ]);
+  
+  //         setCart([]);  // Clear cart after successful payment
+  //       },
+  //       prefill: {
+  //         name: "Kushwinth", // Prefill customer details (can be dynamic)
+  //         email: "testmail@gmail.com",
+  //         contact: "9876543210"
+  //       },
+  //       notes: {
+  //         address: "Razorpay Corporate Office"
+  //       },
+  //       theme: {
+  //         color: "#3399cc"
+  //       }
+  //     };
+  
+  //     var pay = new window.Razorpay(options);
+  //     pay.open();
+  
+  //   } catch (error) {
+  //     console.error('Error during payment process:', error.response ? error.response.data : error.message);
+  //     setError('An error occurred during the payment process.');
+  //   }
+  // };
+
   const handleProceedToPay = async () => {
     try {
       const userid = localStorage.getItem('user_id'); // Retrieve user_id from localStorage
@@ -281,15 +362,11 @@ const handleLogout = () => {
         return total + itemPrice;
       }, 0);
   
-      console.log('Subtotal Calculated:', subtotal);
-  
-      // Apply the discount of ₹100 for second item onwards
+      // Apply the discount of ₹100 for the second item onwards
       const discount = cart.length > 1 ? 100 : 0;
   
       // Calculate the final total amount after discount
       const totalAmount = subtotal - discount;
-  
-      console.log('Total Amount Calculated (after discount):', totalAmount);
   
       if (totalAmount <= 0) {
         throw new Error('Total amount must be greater than zero');
@@ -299,61 +376,117 @@ const handleLogout = () => {
         throw new Error('Address is required for payment processing');
       }
   
-      // Razorpay Integration
-      var options = {
-        key: "rzp_test_d4pLXa7gyQuEX9", // Your Razorpay Key
-        key_secret: "qjlkJruOyIz689EqqqMK2pNn", // Razorpay Secret
-        amount: totalAmount * 100, // Razorpay accepts amount in paise
-        currency: "INR",
-        name: "NR Agencies", // Your company/service name
-        description: "Payment for AC Repair Services",
-        handler: async function (response) {
-          const razorpayPaymentId = response.razorpay_payment_id;
+      // Step 1: Process payment
+      const paymentResponse = await axios.post('http://localhost:5000/api/Payment', {
+        userid,
+        amount: totalAmount,
+        address,
+        cart,
+        transactionId: `${new Date().toISOString().replace(/[^0-9]/g, "")}`, // Unique transactionId based on current date and time
+      });
   
-          alert(`Payment Successful! Payment ID: ${razorpayPaymentId}`);
+      if (paymentResponse.data.status !== 'success') {
+        throw new Error('Payment processing failed');
+      }
   
-          // Send the transactionId (razorpayPaymentId) to the backend
-          const paymentResponse = await axios.post('http://localhost:5000/api/payment', {
-            userid,
-            amount: totalAmount,
-            address,
-            cart,
-            transactionId: razorpayPaymentId,  // Pass Razorpay payment ID to backend
-          });
+      // Step 2: Generate PDF Invoice
+      generateInvoicePDF(userid, subtotal, discount, totalAmount, cart, address);
   
-          console.log('Backend Payment response:', paymentResponse.data);
-  
-          setNotifications(prevNotifications => [
-            ...prevNotifications,
-            {
-              id: new Date().getTime(),
-              message: 'Thank you for choosing our services. Payment was successful.',
-            },
-          ]);
-  
-          setCart([]);  // Clear cart after successful payment
+      // Clear cart after generating the invoice
+      setCart([]);
+      
+      setNotifications((prevNotifications) => [
+        ...prevNotifications,
+        {
+          id: new Date().getTime(),
+          message: 'Thank you for choosing our services. Invoice downloaded successfully.',
         },
-        prefill: {
-          name: "Kushwinth", // Prefill customer details (can be dynamic)
-          email: "testmail@gmail.com",
-          contact: "9876543210"
-        },
-        notes: {
-          address: "Razorpay Corporate Office"
-        },
-        theme: {
-          color: "#3399cc"
-        }
-      };
-  
-      var pay = new window.Razorpay(options);
-      pay.open();
-  
+      ]);
+      
     } catch (error) {
-      console.error('Error during payment process:', error.response ? error.response.data : error.message);
-      setError('An error occurred during the payment process.');
+      console.error('Error during payment or invoice processing:', error.response ? error.response.data : error.message);
+      setError('An error occurred while processing the payment or generating the invoice.');
     }
   };
+
+
+  const generateInvoicePDF = (userid, subtotal, discount, totalAmount, cart, address) => {
+    // Initialize the jsPDF document
+    const doc = new jsPDF();
+  
+    // Add Company Name or Title
+    doc.setFontSize(28);
+    doc.text('SREE TEQ', 105, 20, null, null, 'center');
+    
+    // Add a space between title and invoice text
+    let yPos = 40; // Start from a position below the title
+    
+    // Add Title
+    doc.setFontSize(20);
+    doc.text('Invoice', 105, yPos, null, null, 'center');
+    
+    // Add space
+    yPos += 20;
+  
+    // Add user and transaction details
+    doc.setFontSize(12);
+    doc.text(`User ID: ${userid}`, 10, yPos);
+    const transactionId = `${new Date().toISOString().replace(/[^0-9]/g, "")}`;
+    doc.text(`Transaction ID: ${transactionId}`, 10, yPos + 10);
+    
+    yPos += 20;
+    // Add any slot details here if available for each item:
+    cart.forEach((item) => {
+      if (item.slotBookedDate) {
+        doc.text(`Slot Booked Date: ${formatDate(item.slotBookedDate)}`, 10, yPos);
+      }
+      if (item.slotBookedTime) {
+        doc.text(`Slot Booked Time: ${formatTime(item.slotBookedTime)}`, 10, yPos + 10);
+      }
+    });
+  
+    // Add space before table header
+    yPos += 30;
+  
+    // Add the table header for item description
+    doc.setFontSize(14);
+    doc.text('Description', 10, yPos);
+    doc.text('Qty', 110, yPos);
+    doc.text('Price', 130, yPos);
+    doc.text('Total', 170, yPos);
+  
+    // Add items to the invoice
+    yPos += 10;
+    cart.forEach((item, index) => {
+      doc.setFontSize(12);
+      doc.text(item.name, 10, yPos);
+      doc.text(String(item.qty || 1), 110, yPos);
+      doc.text(`₹${item.price}`, 130, yPos);
+      doc.text(`₹${item.price}`, 170, yPos);
+      yPos += 10; // Adjust position for the next row
+    });
+  
+    // Add space before subtotal and other totals
+    yPos += 10;
+  
+    // Add subtotal, discount, and total amount
+    doc.text(`Subtotal: ₹${subtotal}`, 100, yPos);
+    doc.text(`Discount: ₹${discount}`, 100, yPos + 10);
+    doc.setFontSize(14);
+    doc.text(`Total Amount: ₹${totalAmount}`, 100, yPos + 20);
+  
+    // Add space before footer
+    yPos += 40;
+  
+    // Add footer with user address
+    doc.setFontSize(10);
+    doc.text(`Address: ${address}`, 10, yPos);
+    doc.text(`Payment Status: Success`, 10, yPos + 10);
+  
+    // Save the generated PDF and download it automatically
+    doc.save(`Invoice_${transactionId}.pdf`);
+  };
+
   
   const handleConfirmBooking = async () => {
     try {
@@ -505,6 +638,36 @@ const handleLogout = () => {
   };
 
 
+  const handleShowHistory = async () => {
+    try {
+        const userid = localStorage.getItem('user_id');
+        if (!userid) {
+            throw new Error('Userid is required to fetch cart history');
+        }
+
+        const response = await axios.get(`http://localhost:5000/api/payment/user/${userid}`);
+        if (response.data.status === 'success') {
+            const cartHistory = response.data.data.map((payment) => {
+                return {
+                    type: payment.cart[0].name,
+                    price: payment.amount,
+                    discount: payment.cart.length > 1 ? 100 : 0,
+                    time: payment.cart[0].time,
+                    slotBookedTime: payment.cart[0].slotBookedTime,
+                    slotBookedDate: payment.cart[0].slotBookedDate,
+                };
+            });
+            setCartHistory(cartHistory);
+        } else {
+            console.error('Error fetching cart history:', response.data.message);
+        }
+    } catch (error) {
+        console.error('Error fetching cart history:', error.response ? error.response.data : error.message);
+    } finally {
+        setShowHistory(!showHistory);
+    }
+};
+
   const reviews = [
     { name: 'Saurabh', date: 'July 2024', rating: 5, comment: 'Very nice service' },
     { name: 'Bharat', date: 'July 2024', rating: 5, comment: 'Very nice service and polite nature' },
@@ -554,6 +717,24 @@ const handleLogout = () => {
       text: 'Your home deserves top-notch care! Our home AC service aims to make sure you get exactly that. With a strong focus on efficiency and keeping customers happy, we ensure your window AC doesn’t just cool but does its job reliably day in and day out.'
     },
   ];
+
+
+  // Helper function to format ISO time to a readable format
+  const formatTime = (isoTime) => {
+    const date = new Date(isoTime);
+    const options = { hour: 'numeric', minute: 'numeric', hour12: true };
+    return date.toLocaleString('en-US', options);
+};
+
+// Helper function to format date to dd/mm/yyyy
+const formatDate = (isoDate) => {
+    const date = new Date(isoDate);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+};
+
 // change DONE
   const content1 = [
     {
@@ -643,16 +824,13 @@ const handleRemoveservicefromCart = (selectedServiceId) => {
 };
 
  
-const fridgePricePerIssue = 99;
+
   // State for storing fridge data fetched from the backend
   const [singleDoors, setSingleDoors] = useState([]);
   const [doubleDoors, setDoubleDoors] = useState([]);
   const [sideBySideDoors, setSideBySideDoors] = useState([]);
 
   // State for selected issues
-  const [selectedSingleDoorIssues, setSelectedSingleDoorIssues] = useState({});
-  const [selectedDoubleDoorIssues, setSelectedDoubleDoorIssues] = useState({});
-  const [selectedSideBySideDoorIssues, setSelectedSideBySideDoorIssues] = useState({});
 
   // Fetch fridge data from backend
   useEffect(() => {
@@ -694,33 +872,6 @@ const fridgePricePerIssue = 99;
     fetchsideBySideDoors();
   }, []);
   // Handle issue changes for different fridge types
-  const handleIssueChange = (id, issue, type) => {
-    const setSelectedIssues = {
-      'Single Door': setSelectedSingleDoorIssues,
-      'Double Door': setSelectedDoubleDoorIssues,
-      'Side-By-Side': setSelectedSideBySideDoorIssues,
-    }[type];
-
-    setSelectedIssues((prev) => {
-      const updatedIssues = prev[id] ? [...prev[id]] : [];
-      if (updatedIssues.includes(issue)) {
-        return { ...prev, [id]: updatedIssues.filter((i) => i !== issue) };
-      } else {
-        return { ...prev, [id]: [...updatedIssues, issue] };
-      }
-    });
-  };
-
-  // Calculate the total price based on selected issues for each fridge type
-  const calculateTotalPrice = (fridgeId, type) => {
-    const selectedIssues = {
-      'Single Door': selectedSingleDoorIssues[fridgeId],
-      'Double Door': selectedDoubleDoorIssues[fridgeId],
-      'Side-By-Side': selectedSideBySideDoorIssues[fridgeId],
-    }[type] || [];
-    return selectedIssues.length * fridgePricePerIssue;
-  };
-
   
   // Example of handling cart item booking
   const handleFridgeBooking = (fridge) => {
@@ -729,171 +880,225 @@ const fridgePricePerIssue = 99;
     setShowSloterModal(true); // Open slot booking modal
   };
   
-  
-  const handleRemovefridgefromCart = (fridgeId) => {
-    setCart((prevCart) => prevCart.filter((fridge) => fridge._id !== fridgeId));
-  };
-  
-  const handleConformBooking = async () => {
-    try {
-        // Retrieve user ID from localStorage
-        const userid = localStorage.getItem('user_id');
-        if (!userid) {
-            setError('User ID not found. Please log in again.');
-            return;
-        }
-
-        // Validate all fields are provided
-        if (!selectedDate || !selectedTime || !address || !coordinatesInput) {
-            setError('All fields are required.');
-            return;
-        }
-
-        // Parse date and time to create a valid JavaScript Date object
-        const [day, month, year] = selectedDate.split('-').map(Number);
-        let [time, modifier] = selectedTime.split(' ');
-        let [hour, minute] = time.split(':').map(Number);
-
-        if (modifier === 'PM' && hour < 12) {
-            hour += 12;
-        } else if (modifier === 'AM' && hour === 12) {
-            hour = 0;
-        }
-
-        const slotBookedTime = new Date(year, month - 1, day, hour, minute);
-        if (isNaN(slotBookedTime.getTime())) {
-            setError('Invalid date or time. Please try again.');
-            return;
-        }
-
-        // Parse item price and ensure it's a valid number
-        const itemPrice = typeof currentItem.price === 'number'
-            ? currentItem.price
-            : parseFloat(currentItem?.price?.replace(/[^0-9.-]+/g, '')) || 0;
-
-        const itemTotalPrice = itemPrice;
-
-        // Extract and validate latitude and longitude from coordinates input
-        const coordinates = coordinatesInput.split(',').map(Number); // Extracting lat, lon
-        if (coordinates.length !== 2 || isNaN(coordinates[0]) || isNaN(coordinates[1])) {
-            setError('Invalid coordinates. Please enter valid latitude and longitude.');
-            return;
-        }
-
-        // Prepare cart item to be sent to the backend
-        const cartItem = {
-            ...currentItem,
-            userid: personalDetails.userid,
-            username: personalDetails.Name,
-            mobileNumber: personalDetails.mobileNumber,
-            slotBookedTime: slotBookedTime.toISOString(),
-            slotBookedDate: selectedDate,
-            estimatedTime: currentItem.estimatedTime || 'N/A',
-            totalPrice: itemTotalPrice,
-            address,
-            coordinates: { lat: coordinates[0], lon: coordinates[1] }
-        };
-
-        // Add the item to the local cart
-        const updatedCart = [...cart, cartItem];
-        setCart(updatedCart);
-
-        // Clear selected fields and hide slot modal, show cart modal
-        setSelectedDate('');
-        setSelectedTime('');
-        setShowSlotModal(false);
-        setShowCartModal(true);
-
-        // Send cart item to the backend
-        await axios.post('http://localhost:5000/api/carts', cartItem);
-    } catch (error) {
-        console.error('Error during booking process:', error);
-        setError('An error occurred during the booking process.');
-    }
-};
 
   return (
     <div className="container">
     <div>
     <br/> <br/> <br/> <br/>
-    <header className="fixed-header d-flex justify-content-between align-items-center py-3 px-4">
-        <div><Col xs={3} className="d-flex align-items-center">
-        <Button variant="link" onClick={handleProfileClick}>
-            <FontAwesomeIcon icon={faUserCircle} size="2x" />
-        </Button>
-        </Col></div>
-        <div className="location">
-        <FontAwesomeIcon icon={faMapMarkerAlt} size="lg" className="me-2" />
-        {location}
-        </div>
-        <div className="icons d-flex">
-        <Button variant="primary" onClick={() => setShowCartModal(true)}>
-          <i className="fa fa-shopping-cart"></i> ({cart.length})
-        </Button>
-        <div className="notifications-container">
-        <Button
-            variant="link"
-            onClick={() => setShowNotifications(!showNotifications)}
+    <header 
+  className="fixed-header d-flex justify-content-between align-items-center py-3 px-4"
+  style={{
+    width: '100%',
+    backgroundColor: '#fff',
+    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+    flexDirection: window.innerWidth <= 768 ? 'row' : 'row',
+    padding: '10px 15px',
+    justifyContent: 'space-between'
+  }}
+>
+  <div style={{ display: 'flex', alignItems: 'center' }}>
+    <Col xs={3} className="d-flex align-items-center">
+      <Button variant="link" onClick={handleProfileClick} style={{ padding: '0' }}>
+        <FontAwesomeIcon icon={faUserCircle} size="3x" />
+      </Button>
+    </Col>
+  </div>
+
+  <div 
+    className="location" 
+    style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      marginLeft: '5px', 
+      fontSize: '0.9rem' 
+    }}
+  >
+    <FontAwesomeIcon icon={faMapMarkerAlt} size="2x" className="me-2" />
+  </div>
+
+  <div 
+    className="icons d-flex"
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      gap: '10px',
+    }}
+  >
+    <Button 
+      variant="primary" 
+      onClick={() => setShowCartModal(true)}
+      style={{ 
+        padding: '5px 10px', 
+        fontSize: '0.9rem', 
+        borderRadius: '8px',
+        display: 'flex',
+        alignItems: 'center'
+      }}
+    >
+      <i className="fa fa-shopping-cart" style={{ fontSize: '2rem', marginRight: '5px' }}></i>
+      <span>({cart.length})</span>
+    </Button>
+
+    <div 
+      className="notifications-container" 
+      style={{ 
+        position: 'relative', 
+        marginLeft: '10px',
+        display: 'flex',
+        alignItems: 'center'
+      }}
+    >
+      <Button
+        variant="link"
+        onClick={() => setShowNotifications(!showNotifications)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0'
+        }}
+      >
+        <FontAwesomeIcon icon={faBell} size="3x" />
+        <Badge 
+          bg="secondary" 
+          style={{
+            position: 'absolute',
+            top: '0',
+            right: '-10px',
+            fontSize: '0.7rem',
+            borderRadius: '50%',
+            padding: '2px 5px'
+          }}
         >
-            <FontAwesomeIcon icon={faBell} size="2x"/>
-            <Badge bg="secondary" >{notifications.length}</Badge>
-        </Button>
-        {showNotifications && (
-            <div className="notifications-dropdown">
-            {notifications.length === 0 ? (
-                <div>No notifications</div>
-            ) : (
-                notifications.map(notification => (
-                <div key={notification.id} className="notification-item">
-                    {notification.message}
-                </div>
-                ))
-            )}
-            </div>
-        )}
+          {notifications.length}
+        </Badge>
+      </Button>
+
+      {showNotifications && (
+        <div
+          className="notifications-dropdown"
+          style={{
+            position: 'absolute',
+            top: '40px',
+            right: '0',
+            background: 'white',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+            width: '200px',
+            padding: '10px',
+            zIndex: 1
+          }}
+        >
+          {notifications.length === 0 ? (
+            <div>No notifications</div>
+          ) : (
+            notifications.map(notification => (
+              <div key={notification.id} className="notification-item">
+                {notification.message}
+              </div>
+            ))
+          )}
         </div>
-      </div>
-      </header>
+      )}
+    </div>
+  </div>
+</header>
+
       
     {/* Cart Modal */}
     <Modal show={showCartModal} onHide={() => setShowCartModal(false)}>
         <Modal.Header closeButton>
-          <Modal.Title>Cart</Modal.Title>
+            <Modal.Title>Cart</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <ul className="list-group">
-            {cart.map((item, index) => (
-              <li className="list-group-item d-flex justify-content-between align-items-center" key={item._id}>
-                <div>
-                  <strong>Type:</strong> {item.type}<br />
-                  <strong>Price:</strong> ₹{item.price}<br />
-                  <strong>Discount:</strong> ₹100 off 2nd item onwards<br />
-                  <strong>Estimated Time:</strong> {item.time || 'N/A'}<br />
-                  <strong>Slot Booked Time:</strong> {item.slotBookedTime ? new Date(item.slotBookedTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}<br />
-                  <strong>Slot Booked Date:</strong> {item.slotBookedDate ? new Date(item.slotBookedDate).toLocaleDateString('en-GB') : 'N/A'}<br />
-                  <strong>Total Price:</strong> ₹{item.price}<br /> {/* Display original price */}
+            <ul className="list-group">
+                {cart.map((item) => (
+                    <li className="list-group-item d-flex justify-content-between align-items-center" key={item._id}>
+                        <div>
+                            <strong>Type:</strong> {item.type}<br />
+                            <strong>Price:</strong> ₹{item.price}<br />
+                            <strong>Discount:</strong> ₹100 off 2nd item onwards<br />
+                            <strong>Estimated Time:</strong> {item.time || 'N/A'}<br />
+                            <strong>Slot Booked Time:</strong> {item.slotBookedTime ? formatTime(item.slotBookedTime) : 'N/A'}<br />
+                            <strong>Slot Booked Date:</strong> {item.slotBookedDate ? formatDate(item.slotBookedDate) : 'N/A'}<br />
+                            <strong>Total Price:</strong> ₹{item.price}<br />
+                        </div>
+                        <Button variant="danger" onClick={() => handleRemoveFromCart(item._id)}>Remove</Button>
+                    </li>
+                ))}
+            </ul>
+            <hr />
+            <div className="d-flex justify-content-between">
+                <strong>Subtotal:</strong>
+                <span>₹{cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0).toFixed(2)}</span>
+            </div>
+            <div className="d-flex justify-content-between">
+                <strong>Discount Applied:</strong>
+                <span>₹{cart.length >= 2 ? 100 : 0}</span>
+            </div>
+            <div className="d-flex justify-content-between">
+                <strong>Total Amount:</strong>
+                <span>₹{(cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0) - (cart.length >= 2 ? 100 : 0)).toFixed(2)}</span>
+            </div>
+
+            {showHistory && (
+                <div style={{ marginTop: '1rem' }}>
+                    <h5>Cart History</h5>
+                    {cartHistory.length === 0 ? (
+                        <p>No previous transactions.</p>
+                    ) : (
+                        <ul style={{ display: 'flex', flexWrap: 'wrap', padding: 0, listStyleType: 'none' }}>
+                            {cartHistory.map((history, index) => (
+                                <li 
+                                    style={{
+                                        flex: '0 0 48%', // Two items per row
+                                        marginBottom: '20px',
+                                        border: '1px solid #ddd',
+                                        padding: '10px',
+                                        borderRadius: '5px',
+                                        backgroundColor: '#f8f9fa'
+                                    }} 
+                                    key={index}
+                                >
+                                    <strong>Transaction {index + 1}:</strong>
+                                    <ul style={{ padding: 0, margin: 0 }}>
+                                        <li>
+                                            <strong>Type:</strong> {history.type}
+                                        </li>
+                                        <li>
+                                            <strong>Price:</strong> ₹{history.price}
+                                        </li>
+                                        <li>
+                                            <strong>Discount:</strong> ₹{history.discount}
+                                        </li>
+                                        <li>
+                                            <strong>Estimated Time:</strong> {history.time || 'N/A'}
+                                        </li>
+                                        <li>
+                                            <strong>Slot Booked Time:</strong> {history.slotBookedTime ? new Date(history.slotBookedTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                        </li>
+                                        <li>
+                                            <strong>Slot Booked Date:</strong> {history.slotBookedDate ? new Date(history.slotBookedDate).toLocaleDateString('en-GB') : 'N/A'}
+                                        </li>
+                                        <li>
+                                            <strong>Total Price:</strong> ₹{history.price}
+                                        </li>
+                                    </ul>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
-                <Button variant="danger" onClick={() => handleRemoveFromCart(item._id)}>Remove</Button>
-              </li>
-            ))}
-          </ul>
-          <hr />
-          <div className="d-flex justify-content-between">
-            <strong>Subtotal:</strong>
-            <span>₹{cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0).toFixed(2)}</span>
-          </div>
-          <div className="d-flex justify-content-between">
-            <strong>Discount Applied:</strong>
-            <span>₹{cart.length >= 2 ? 100 : 0}</span> {/* Apply ₹100 flat discount */}
-          </div>
-          <div className="d-flex justify-content-between">
-            <strong>Total Amount:</strong>
-            <span>₹{(cart.reduce((total, item) => total + (typeof item.price === 'number' ? item.price : parseFloat(item.price.replace(/[^0-9.-]+/g, '')) || 0), 0) - (cart.length >= 2 ? 100 : 0)).toFixed(2)}</span>
-          </div>
+            )}
+
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowCartModal(false)}>Close</Button>
-          <Button variant="primary" onClick={handleProceedToPay}>Proceed to Pay</Button>
+            <Button variant="secondary" onClick={() => setShowCartModal(false)}>Close</Button>
+            <Button variant="primary" onClick={handleProceedToPay}>Proceed to Order</Button>
+            <Button variant="info" onClick={handleShowHistory}>
+                {showHistory ? "Hide History" : "Show History"}
+            </Button>
         </Modal.Footer>
     </Modal>
 
@@ -1316,7 +1521,7 @@ const fridgePricePerIssue = 99;
                 <img
                   src={`${process.env.PUBLIC_URL}${service.image}`}
                   alt={service.name}
-                  style={{ height: '250px', width: '200px', objectFit: 'cover', marginLeft: '20px' }}
+                  style={{ height: '250px', width: '150px', objectFit: 'cover', marginLeft: '20px' }}
                 />
               </div>
               <div className="card-footer text-center bg-light p-2">
@@ -1368,7 +1573,7 @@ const fridgePricePerIssue = 99;
                   <img
                     src={`${process.env.PUBLIC_URL}${repair.image}`}
                     alt={repair.name}
-                    style={{ height: '250px', width: '200px', objectFit: 'cover', marginLeft: '20px' }}
+                    style={{ height: '250px', width: '150px', objectFit: 'cover', marginLeft: '20px' }}
                   />
                 </div>
                 <div className="card-footer text-center bg-light p-2">
@@ -1419,7 +1624,7 @@ const fridgePricePerIssue = 99;
                   <img
                     src={`${process.env.PUBLIC_URL}${installation.image}`}
                     alt={installation.name}
-                    style={{ height: '250px', width: '200px', objectFit: 'cover', marginLeft: '20px' }}
+                    style={{ height: '250px', width: '150px', objectFit: 'cover', marginLeft: '20px' }}
                   />
                 </div>
                 <div className="card-footer text-center bg-light p-2">
@@ -1746,7 +1951,7 @@ const fridgePricePerIssue = 99;
                 <img
                   src={`${process.env.PUBLIC_URL}${sideBySideDoor.image}`}
                   alt={sideBySideDoor.name}
-                  style={{ height: '250px', width: '200px', objectFit: 'cover', marginLeft: '20px' }}
+                  style={{ height: '250px', width: '150px', objectFit: 'cover', marginLeft: '20px' }}
                 />
               </div>
               <div className="d-flex justify-content-between align-items-center p-2">
@@ -2487,9 +2692,9 @@ const fridgePricePerIssue = 99;
           <div className="col-md-3">
             <h5>Company</h5>
             <ol className="list-unstyled">
-              <li><a href="#">About us</a></li>
-              <li><a href="#">Terms & conditions</a></li>
-              <li><a href="#">Privacy policy</a></li>
+              <li><a href="/login-page">About us</a></li>
+              <li><a href="/Sree teq's.Terms and Conditions.pdf">Terms & conditions</a></li>
+              <li><a href="/Sree Teq's.Privacy Policy.pdf">Privacy policy</a></li>
               <li><a href="#">Anti-discrimination policy</a></li>
               <li><a href="#">NR impact</a></li>
               <li><a href="#">Careers</a></li>
@@ -2499,9 +2704,8 @@ const fridgePricePerIssue = 99;
             <h5>For customers</h5>
             <ol className="list-unstyled">
               <li><a href="#">NR reviews</a></li>
-              <li><a href="#">Categories near you</a></li>
               <li><a href="#">Blog</a></li>
-              <li><a href="#">Contact us</a></li>
+              <li><a href="mailto:kingdev376@gmail.com">Contact us</a></li>
             </ol>
           </div>
           <div className="col-md-3">
